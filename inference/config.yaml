@@ -1,0 +1,44 @@
+# YOLO 推理服务配置
+# 已适配当前项目：使用根目录的 ppe.pt（10 类，直接输出 NO-* 违规类）
+# 类别顺序已与 ppe.pt 实际训练类别核对一致（见 inference/weights/README）
+
+backend_url: "http://backend:8000"
+
+# 模型权重路径（ppe.pt 已复制到 inference/weights/）
+model_path: "weights/ppe.pt"
+
+# 类别索引 -> 名称（与 ppe.pt 的 model.names 一致，勿改顺序）
+class_names:
+  0: Hardhat
+  1: Mask
+  2: NO-Hardhat
+  3: NO-Mask
+  4: NO-Safety Vest
+  5: Person
+  6: Safety Cone
+  7: Safety Vest
+  8: machinery
+  9: vehicle
+
+# 违规判定：
+#   direct    —— 模型直接输出违规类（NO-*），出现即判定违规（适配 ppe.pt）
+#   person_iou—— 正类装备模型：person 与装备框 IoU 低于阈值判定缺失（通用模式）
+judge_mode: direct
+
+# 违规类型 -> 触发违规的类别名（direct 模式下取模型输出的违规类）
+violation_rule:
+  no_helmet: NO-Hardhat
+  no_vest: NO-Safety Vest
+  no_mask: NO-Mask
+
+# 检测置信度阈值
+conf_threshold: 0.5
+
+# 违规抓拍去重：同一摄像头同一类型在此秒数内只上报一次，避免刷屏
+dedup_seconds: 30
+
+# 目标检测帧率（每 N 帧检测一次，节省 GPU/CPU）
+infer_every_n_frames: 5
+
+# 设备：cpu / 0（GPU序号）
+device: cpu

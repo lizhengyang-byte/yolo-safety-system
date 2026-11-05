@@ -1,0 +1,17 @@
+# MediaMTX 配置（精简，只列关键项）
+# 完整说明见 https://github.com/bluenviron/mediamtx
+
+# RTSP 监听端口（摄像头通过此端口推流/拉流）
+rtspAddress: :8554
+
+# HTTP 输出（FLV/WebRTC/HLS 均通过此端口访问）
+api: yes
+httpAddress: :8080
+
+# 允许通过 HTTP 拉流（前端 flv.js 播放）
+webrtc: yes
+
+# 路数限制
+paths:
+  all_others:
+    source: publisher

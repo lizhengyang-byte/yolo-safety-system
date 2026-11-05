@@ -1,0 +1,24 @@
+[project]
+name = "yolo-safety-inference"
+version = "1.0.0"
+description = "工地AI安全智能监测系统 - YOLO 推理服务（已适配 ppe.pt）"
+requires-python = ">=3.12"
+# 与 requirements.txt 保持一致（Docker 构建仍使用 requirements.txt）
+# numpy 不固定版本，由 ultralytics/torch 解析，避免与 CUDA torch 冲突
+dependencies = [
+    "ultralytics==8.3.42",
+    "opencv-python==4.10.0.84",
+    "requests==2.32.3",
+    "PyYAML==6.0.2",
+]
+
+# 与仓库根目录 pyproject.toml 一致的 PyTorch CUDA 源：
+# 本地 GPU 推理时使用 cu132 版 torch（无 GPU 机器会回落 CPU 版）
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu132" }]
+torchvision = [{ index = "pytorch-cu132" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true

@@ -4,8 +4,8 @@ import cvzone
 import math
 
 # Open video file for reading
-cap = cv2.VideoCapture("./videos/huuman.mp4") 
-
+#cap = cv2.VideoCapture("./videos/huuman.mp4") 
+cap = cv2.VideoCapture("videos/工人工地干活视频素材.mp4")
 # Load YOLO model for detecting objects related to personal protective equipment (PPE)
 model = YOLO("ppe.pt")
 

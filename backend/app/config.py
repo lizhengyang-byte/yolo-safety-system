@@ -1,0 +1,47 @@
+"""全局配置
+
+已适配当前项目（ppe.pt 模型）：
+- VIOLATION_RULE 使用 ppe.pt 直接输出的违规类（NO-Hardhat / NO-Mask / NO-Safety Vest）
+- JUDGE_MODE=direct（出现违规类即判定，无需 IoU）
+- 默认 DATABASE_URL 为 SQLite，本地无需 MySQL 即可运行；
+  docker-compose 中通过环境变量覆盖为 MySQL
+"""
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    # 数据库连接（本地默认 SQLite，零依赖开箱即用；
+    # docker-compose 中覆盖为 mysql+pymysql://...）
+    DATABASE_URL: str = "sqlite:///./yolo_safety.db"
+    # JWT 认证
+    JWT_SECRET: str = "yolo-safety-secret-change-me-in-prod"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 720
+    # 登录账号（演示用，生产请接数据库 + 密码哈希）
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin123"
+    # 抓拍图片存储目录（本地默认 backend/images/，docker-compose 覆盖为 /data/images）
+    UPLOAD_DIR: str = "./images"
+    # 允许的违规类型（系统级 key，前端展示中文）
+    VIOLATION_TYPES: list = ["no_helmet", "no_vest", "no_mask"]
+    # 违规判定规则：违规类型 -> 触发违规的类别名（与 ppe.pt 类别一致）
+    VIOLATION_RULE: dict = {
+        "no_helmet": "NO-Hardhat",
+        "no_vest": "NO-Safety Vest",
+        "no_mask": "NO-Mask",
+    }
+    # 违规判定模式：direct（ppe.pt 直接输出违规类）/ person_iou（正类装备模型）
+    JUDGE_MODE: str = "direct"
+    # 临时演示模式：后端直接加载模型推理（不依赖 RTSP/推理服务）
+    # docker 中挂载路径为 /app/weights/ppe.pt；本地开发可设 .env 覆盖，
+    # 或由 demo.py 自动搜索相对路径（见 routers/demo.py）
+    DEMO_MODEL_PATH: str = "/app/weights/ppe.pt"
+    DEMO_CONF_THRESHOLD: float = 0.5
+    DEMO_DEVICE: str = "cpu"
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+settings = Settings()

@@ -1,0 +1,29 @@
+# 依赖
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 模型权重（体积大，不入库；根目录 ppe.pt 与 inference/weights/ppe.pt）
+*.pt
+
+# 抓拍图片与本地数据库（后端运行时生成）
+backend/images/
+*.db
+*.jpg
+*.jpeg
+*.png
+
+# 测试视频（体积大，不入库）
+videos/
+
+# 环境变量
+.env
+*.local
+
+# IDE
+.vscode/
+.idea/
+.DS_Store

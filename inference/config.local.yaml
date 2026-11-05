@@ -1,0 +1,36 @@
+# 本地开发配置（无 Docker 时使用）
+# 用法：在仓库根目录执行
+#   CONFIG_PATH=inference/config.local.yaml uv run python -m inference.main
+# 路径均为相对仓库根目录（python -m inference.main 的 cwd 必须是仓库根目录）
+# 与 config.yaml 的差异：backend_url 指向本机后端、抓拍目录改本地相对路径
+
+backend_url: "http://localhost:8000"
+
+model_path: "inference/weights/ppe.pt"
+
+class_names:
+  0: Hardhat
+  1: Mask
+  2: NO-Hardhat
+  3: NO-Mask
+  4: NO-Safety Vest
+  5: Person
+  6: Safety Cone
+  7: Safety Vest
+  8: machinery
+  9: vehicle
+
+judge_mode: direct
+
+violation_rule:
+  no_helmet: NO-Hardhat
+  no_vest: NO-Safety Vest
+  no_mask: NO-Mask
+
+conf_threshold: 0.5
+dedup_seconds: 30
+infer_every_n_frames: 5
+device: cpu
+
+# 抓拍图片本地缓存目录（后端入库时还会保存一份到后端 UPLOAD_DIR）
+save_dir: "./images"

@@ -1,0 +1,33 @@
+[project]
+name = "yolo-safety-backend"
+version = "1.0.0"
+description = "工地AI安全智能监测系统 - FastAPI 后端（已适配 ppe.pt）"
+requires-python = ">=3.12"
+# 与 requirements.txt 保持一致（Docker 构建仍使用 requirements.txt）
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "sqlalchemy==2.0.36",
+    "pymysql==1.1.1",
+    "cryptography==44.0.0",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.0",
+    "PyJWT==2.10.1",
+    "python-multipart==0.0.20",
+    "pandas==2.2.3",
+    "openpyxl==3.1.5",
+    # 临时演示模式：后端直接加载 YOLO 推理
+    "ultralytics==8.3.42",
+    "opencv-python-headless==4.10.0.84",
+]
+
+# 与仓库根目录 pyproject.toml 一致的 PyTorch CUDA 源：
+# 后端演示模式加载 YOLO 需要 torch，统一走 cu132 索引（无 GPU 机器会回落 CPU 版）
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu132" }]
+torchvision = [{ index = "pytorch-cu132" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true

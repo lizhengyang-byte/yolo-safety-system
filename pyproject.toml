@@ -1,0 +1,31 @@
+[project]
+name = "yolo-safety-system"
+version = "0.1.0"
+description = "YOLOv8 PPE / safety detection with OpenCV and cvzone"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "ultralytics>=8.0.0",
+    "cvzone>=1.5.0",
+    "tqdm>=4.70.1",
+    # torch/torchvision must be listed here for [tool.uv.sources] to apply;
+    # ultralytics would otherwise pull the CPU build from PyPI.
+    "torch>=2.15.0",
+    "torchvision>=0.29.0",
+]
+
+[dependency-groups]
+dev = []
+
+# PyTorch must come from the PyTorch CUDA index so that `uv sync` on a machine
+# with an NVIDIA GPU installs a CUDA-enabled build (torch 2.15.0+cu132 on
+# Windows). The index is marked explicit so only torch/torchvision use it;
+# everything else still resolves from PyPI.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu132" }]
+torchvision = [{ index = "pytorch-cu132" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
