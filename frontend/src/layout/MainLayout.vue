@@ -17,6 +17,10 @@
           <el-icon><VideoCamera /></el-icon>
           <span>实时监控</span>
         </el-menu-item>
+        <el-menu-item index="/demo">
+          <el-icon><Camera /></el-icon>
+          <span>临时演示</span>
+        </el-menu-item>
         <el-menu-item index="/camera">
           <el-icon><Monitor /></el-icon>
           <span>摄像头管理</span>

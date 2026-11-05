@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "/data/images"
     # 允许的违规类型（与 YOLO 模型类别一致）
     VIOLATION_TYPES: list = ["no_helmet", "no_vest", "no_mask"]
+    # 违规判定规则：违规类型 -> 缺失的装备类别（与 YOLO 类别名一致）
+    VIOLATION_RULE: dict = {
+        "no_helmet": "helmet",
+        "no_vest": "vest",
+        "no_mask": "mask",
+    }
+    # 临时演示模式：后端直接加载模型推理（不依赖 RTSP/推理服务）
+    DEMO_MODEL_PATH: str = "/app/weights/best.pt"
+    DEMO_CONF_THRESHOLD: float = 0.5
+    DEMO_DEVICE: str = "cpu"
 
     class Config:
         env_file = ".env"

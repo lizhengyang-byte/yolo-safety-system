@@ -24,6 +24,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "实时监控" },
       },
       {
+        path: "demo",
+        name: "Demo",
+        component: () => import("@/views/demo/index.vue"),
+        meta: { title: "临时演示" },
+      },
+      {
         path: "camera",
         name: "Camera",
         component: () => import("@/views/camera/index.vue"),
