@@ -1,0 +1,83 @@
+version: "3.8"
+
+services:
+  # 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: yolo-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: yolo123456
+      MYSQL_DATABASE: yolo_safety
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pyolo123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 流媒体转发服务（RTSP -> FLV/WebRTC，供前端预览）
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: yolo-mediamtx
+    restart: unless-stopped
+    ports:
+      - "8554:8554"   # RTSP 输入端口
+      - "8080:8080"   # HTTP / FLV / HLS 输出端口
+    volumes:
+      - ./deploy/mediamtx.yml:/mediamtx.yml
+
+  # FastAPI 后端
+  backend:
+    build: ./backend
+    container_name: yolo-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "mysql+pymysql://root:yolo123456@mysql:3306/yolo_safety?charset=utf8mb4"
+    ports:
+      - "8000:8000"
+    volumes:
+      - image_data:/data/images
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # YOLO 推理服务（RTSP 拉流 + 检测 + 抓拍上报）
+  inference:
+    build: ./inference
+    container_name: yolo-inference
+    restart: unless-stopped
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all   # GPU 可选，去掉则用 CPU
+    volumes:
+      - ./inference/weights:/app/weights
+      - ./inference/config.yaml:/app/config.yaml:ro
+      - image_data:/data/images
+    depends_on:
+      - backend
+    # 如无 GPU 可移除下面两行
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # 前端（Nginx 托管 + 反代后端）
+  frontend:
+    build: ./frontend
+    container_name: yolo-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  image_data:

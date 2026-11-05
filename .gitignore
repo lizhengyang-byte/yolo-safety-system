@@ -1,0 +1,25 @@
+# 依赖
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 模型权重（体积大，不入库）
+inference/weights/*.pt
+
+# 抓拍图片
+/data/
+*.jpg
+*.jpeg
+*.png
+
+# 环境变量
+.env
+*.local
+
+# IDE
+.vscode/
+.idea/
+.DS_Store

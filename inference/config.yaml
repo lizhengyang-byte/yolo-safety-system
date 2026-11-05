@@ -1,0 +1,33 @@
+# YOLO 推理服务配置
+# 修改成你实际的模型类别顺序（由训练数据集决定）
+
+backend_url: "http://backend:8000"
+
+# 模型权重路径（可替换为你训练好的 best.pt）
+model_path: "weights/best.pt"
+
+# 类别索引 -> 名称（示例：0=person 1=helmet 2=vest 3=mask）
+# 请根据你 YOLO 训练数据的 data.yaml 实际类别顺序修改
+class_names:
+  0: person
+  1: helmet
+  2: vest
+  3: mask
+
+# 违规类型 -> 缺失的装备类别
+violation_rule:
+  no_helmet: helmet
+  no_vest: vest
+  no_mask: mask
+
+# 检测置信度阈值
+conf_threshold: 0.5
+
+# 违规抓拍去重：同一摄像头同一类型在此秒数内只上报一次，避免刷屏
+dedup_seconds: 30
+
+# 目标检测帧率（每 N 帧检测一次，节省 GPU/CPU）
+infer_every_n_frames: 5
+
+# 设备：cpu / 0（GPU序号）
+device: cpu
