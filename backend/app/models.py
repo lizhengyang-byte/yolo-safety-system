@@ -1,4 +1,6 @@
 """SQLAlchemy ORM 模型"""
+import json
+
 from sqlalchemy import (
     Boolean,
     Column,
@@ -6,7 +8,7 @@ from sqlalchemy import (
     Float,
     Integer,
     String,
-    func,
+    Text,
 )
 from sqlalchemy.sql import func as _func
 
@@ -39,4 +41,17 @@ class Violation(Base):
     confidence = Column(Float, default=0.0, comment="识别置信度")
     image_path = Column(String(512), comment="图片存储路径")
     image_url = Column(String(512), comment="图片访问地址")
+    anno_url = Column(String(512), default="", comment="标注证据图地址（含检测框）")
+    detections_json = Column(Text, default="", comment="该帧全部检测目标 JSON（详情展示用）")
     created_at = Column(DateTime, server_default=_func.now(), index=True, comment="抓拍时间")
+
+    @property
+    def detections(self) -> list | None:
+        """解析 detections_json；为空或非法时返回 None"""
+        if not self.detections_json:
+            return None
+        try:
+            data = json.loads(self.detections_json)
+            return data if isinstance(data, list) else None
+        except (json.JSONDecodeError, TypeError):
+            return None

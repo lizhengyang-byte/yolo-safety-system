@@ -2,7 +2,7 @@
 
 临时演示模式由后端直接加载模型推理，避免走 RTSP/推理服务链路。
 """
-from typing import List
+from typing import List, Optional
 
 from ultralytics import YOLO
 
@@ -26,11 +26,12 @@ class YoloDetector:
         # 类别索引 -> 名称映射
         self.names = self.model.names  # dict: idx -> name
 
-    def predict(self, image) -> List[Detection]:
-        """输入 BGR 图像，返回 Detection 列表"""
+    def predict(self, image, conf: Optional[float] = None) -> List[Detection]:
+        """输入 BGR 图像，返回 Detection 列表；conf 覆盖默认阈值（None 用实例阈值）"""
+        conf = conf if conf is not None else self.conf_threshold
         results = self.model.predict(
             source=image,
-            conf=self.conf_threshold,
+            conf=conf,
             device=self.device,
             verbose=False,
         )

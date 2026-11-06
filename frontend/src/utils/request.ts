@@ -3,7 +3,7 @@ import { ElMessage } from "element-plus";
 
 const request = axios.create({
   baseURL: "/",
-  timeout: 15000,
+  timeout: 60000, // 首次演示检测需加载 YOLO 模型（约 10~30s），超时放宽
 });
 
 // 请求拦截：附加 token

@@ -59,6 +59,8 @@ class ViolationOut(BaseModel):
     violation_type: str
     confidence: float
     image_url: str
+    anno_url: str = ""
+    detections: Optional[list] = None
     created_at: datetime
 
     class Config:
@@ -68,6 +70,16 @@ class ViolationOut(BaseModel):
 class ViolationPage(BaseModel):
     total: int
     items: List[ViolationOut]
+
+
+# ---------- 摄像头连通性测试 ----------
+class CameraTestRequest(BaseModel):
+    rtsp_url: str
+
+
+class CameraTestResult(BaseModel):
+    ok: bool
+    message: str
 
 
 # ---------- 通用 ----------

@@ -1,4 +1,5 @@
 import request from "@/utils/request";
+import type { DemoDetection } from "@/api/demo";
 
 export interface Violation {
   id: number;
@@ -7,6 +8,8 @@ export interface Violation {
   violation_type: string;
   confidence: number;
   image_url: string;
+  anno_url: string;
+  detections: DemoDetection[] | null;
   created_at: string;
 }
 
@@ -24,6 +27,20 @@ export interface QueryParams {
   end?: string;
 }
 
+export interface TrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface DashboardData {
+  total: number;
+  today: number;
+  online_cameras: number;
+  trend: TrendPoint[];
+  types: { type: string; count: number }[];
+  ranking: { name: string; count: number }[];
+}
+
 export function listViolations(params: QueryParams) {
   return request.get("/api/violations", { params }) as Promise<PageResult>;
 }
@@ -33,4 +50,9 @@ export function getStats() {
     total: number;
     detail: { type: string; count: number }[];
   }>;
+}
+
+/** 数据看板聚合数据（总数 / 今日 / 趋势 / 类型分布 / 摄像头排行） */
+export function getDashboard() {
+  return request.get("/api/logs/dashboard") as Promise<DashboardData>;
 }

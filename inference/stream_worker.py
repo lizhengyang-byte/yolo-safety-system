@@ -3,10 +3,11 @@
 职责：
 1. 通过 OpenCV 拉取摄像头 RTSP 流（先经 MediaMTX 转发保证稳定）
 2. 周期性送入 YOLO 检测
-3. 判定违规，命中时截图保存并调用后端接口上报
+3. 判定违规，命中时截图保存并调用后端接口上报（原始帧 + 标注证据图）
 4. 处理断流重连
 """
 import io
+import json
 import os
 import time
 
@@ -14,6 +15,7 @@ import cv2
 import numpy as np
 import requests
 
+from .annotate import draw_annotations
 from .detector import YoloDetector
 from .judge import judge_violations
 
@@ -40,35 +42,70 @@ class StreamWorker:
         self._running = False
 
     # ---------- 上报 ----------
-    def _report(self, vio_type: str, image_np: np.ndarray, confidence: float = 0.0):
+    def _report(
+        self,
+        vio_type: str,
+        image_np: np.ndarray,
+        confidence: float = 0.0,
+        detections=None,
+    ):
         now = time.time()
         key = vio_type
         if now - self._last_report.get(key, 0) < self.dedup_seconds:
             return
         self._last_report[key] = now
 
-        # 保存本地图片
+        # 保存本地图片（原始帧 + 标注证据图）
         ts = time.strftime("%Y%m%d%H%M%S")
         fname = f"cam{self.camera['id']}_{vio_type}_{ts}.jpg"
+        anno_fname = f"cam{self.camera['id']}_{vio_type}_{ts}_anno.jpg"
         local_path = os.path.join(self.save_dir, fname)
         cv2.imwrite(local_path, image_np)
+
+        # 标注证据图：检测框 + 违规横幅（有说服力的留痕）
+        anno_image = draw_annotations(image_np, detections or [], [vio_type])
+        anno_local = os.path.join(self.save_dir, anno_fname)
+        cv2.imwrite(anno_local, anno_image)
 
         # 组装图片字节
         ok, buf = cv2.imencode(".jpg", image_np)
         if not ok:
             return
         image_bytes = buf.tobytes()
+        ok_anno, buf_anno = cv2.imencode(".jpg", anno_image)
+        if not ok_anno:
+            return
+        anno_bytes = buf_anno.tobytes()
 
-        # 方式一：POST multipart 图片 + 元数据（推荐，后端同时入库）
+        # 该帧全部检测目标 JSON（违规详情页展示用）
+        detections_json = ""
+        if detections:
+            detections_json = json.dumps(
+                [
+                    {
+                        "cls_id": d.cls_id,
+                        "cls_name": d.cls_name,
+                        "conf": round(d.conf, 3),
+                        "box": [round(x, 1) for x in d.box],
+                    }
+                    for d in detections
+                ]
+            )
+
+        # POST multipart 图片 + 元数据（推荐，后端同时入库）
         try:
             resp = requests.post(
                 f"{self.backend_url}/api/violations/with-image",
-                files={"file": (fname, image_bytes, "image/jpeg")},
+                files={
+                    "file": (fname, image_bytes, "image/jpeg"),
+                    "anno": (anno_fname, anno_bytes, "image/jpeg"),
+                },
                 data={
                     "camera_id": self.camera["id"],
                     "camera_name": self.camera["name"],
                     "violation_type": vio_type,
                     "confidence": f"{confidence:.3f}",
+                    "detections": detections_json,
                 },
                 timeout=10,
             )
@@ -136,7 +173,7 @@ class StreamWorker:
                     (d.conf for d in detections if d.cls_name == trigger_cls),
                     default=0.0,
                 )
-                self._report(vio, frame, conf)
+                self._report(vio, frame, conf, detections)
 
     def stop(self):
         self._running = False

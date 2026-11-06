@@ -6,7 +6,7 @@
         <el-form-item>
           <el-input
             v-model="form.username"
-            placeholder="用户名（默认 admin）"
+            placeholder="用户名"
             :prefix-icon="User"
           />
         </el-form-item>
@@ -14,10 +14,13 @@
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="密码（默认 admin123）"
+            placeholder="密码"
             :prefix-icon="Lock"
             show-password
           />
+        </el-form-item>
+        <el-form-item>
+          <el-checkbox v-model="remember">记住密码</el-checkbox>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" style="width: 100%" :loading="loading" @click="onLogin">
@@ -30,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { User, Lock } from "@element-plus/icons-vue";
@@ -38,7 +41,27 @@ import { login } from "@/api/auth";
 
 const router = useRouter();
 const loading = ref(false);
-const form = reactive({ username: "admin", password: "admin123" });
+const remember = ref(false);
+const form = reactive({ username: "", password: "" });
+
+// 记住密码：本地保存账号，下次自动填好
+const REMEMBER_KEY = "yolo_remembered";
+
+onMounted(() => {
+  try {
+    const saved = localStorage.getItem(REMEMBER_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.username) {
+        form.username = parsed.username;
+        form.password = parsed.password || "";
+        remember.value = true;
+      }
+    }
+  } catch {
+    /* 数据损坏则忽略 */
+  }
+});
 
 async function onLogin() {
   if (!form.username || !form.password) {
@@ -49,7 +72,18 @@ async function onLogin() {
   try {
     const res = await login(form);
     localStorage.setItem("token", res.access_token);
+    if (remember.value) {
+      localStorage.setItem(
+        REMEMBER_KEY,
+        JSON.stringify({ username: form.username, password: form.password })
+      );
+    } else {
+      localStorage.removeItem(REMEMBER_KEY);
+    }
     router.push("/dashboard");
+  } catch (e) {
+    // 后端 detail 已由拦截器统一提示（如"用户名或密码错误"）
+    console.warn("登录失败", e);
   } finally {
     loading.value = false;
   }

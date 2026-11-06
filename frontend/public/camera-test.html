@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>摄像头自检</title>
+  <style>
+    body { font-family: sans-serif; padding: 24px; }
+    video { background: #000; max-width: 100%; }
+    button { padding: 8px 20px; margin-right: 12px; }
+    pre { background: #f5f5f5; padding: 12px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h2>📷 摄像头自检页（不经过系统代码）</h2>
+  <p>如果此页也调不出摄像头，说明是浏览器/系统权限或摄像头硬件问题，与系统代码无关。</p>
+  <button onclick="openCam()">打开摄像头</button>
+  <button onclick="stopCam()">关闭</button>
+  <br /><br />
+  <video id="v" autoplay muted playsinline width="640" height="480"></video>
+  <h3>日志</h3>
+  <pre id="log">（点「打开摄像头」后显示结果）</pre>
+  <script>
+    function log(msg) {
+      document.getElementById('log').textContent += '\n' + msg;
+    }
+    async function openCam() {
+      log('安全上下文(secure context): ' + window.isSecureContext);
+      log('navigator.mediaDevices 可用: ' + !!navigator.mediaDevices);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        log('getUserMedia 成功，轨道数: ' + stream.getTracks().length);
+        const v = document.getElementById('v');
+        v.srcObject = stream;
+        await v.play();
+        log('video.play 成功, readyState=' + v.readyState);
+        setTimeout(() => {
+          log('视频分辨率: ' + v.videoWidth + ' x ' + v.videoHeight);
+          log(v.videoWidth ? '✅ 有画面数据' : '⚠️ 有流但画面为黑（摄像头输出异常或系统权限拦截）');
+        }, 1500);
+      } catch (e) {
+        log('❌ 失败: name=' + e.name);
+        log('   message: ' + e.message);
+      }
+    }
+    function stopCam() {
+      const v = document.getElementById('v');
+      if (v.srcObject) {
+        v.srcObject.getTracks().forEach((t) => t.stop());
+        v.srcObject = null;
+      }
+      log('已关闭');
+    }
+    // 无头浏览器自动化测试用：?auto=1 自动打开
+    if (location.search.includes('auto')) openCam();
+  </script>
+</body>
+</html>
