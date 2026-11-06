@@ -80,14 +80,21 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 
 | 接口 | 说明 |
 |---|---|
-| `GET /api/logs/dashboard` | 数据看板聚合：总数/今日/在线摄像头/近7天趋势/类型分布/摄像头排行 |
+| `GET /api/logs/dashboard` | 数据看板聚合：总数/今日/在线摄像头/趋势/类型分布/摄像头排行/**点位排行**；`days` 参数切换窗口（7/30/90，趋势按天 zero-filled） |
 | `GET /api/logs/export` | 导出增强：支持 camera_id 筛选，Excel 内嵌违规图片缩略图，中文文件名 |
+| `GET /api/logs/report` | PDF 安全报告导出（`period=week\|month` 周报/月报）：统计摘要 + 手绘趋势折线图 + 类型分布 + 点位排行 + 前 50 条明细；reportlab 内置 `STSong-Light` CID 中文字体（Windows/Docker 无需系统字体，勿用 4.2 重构后的 LineChart data API，见 `_build_trend_chart` 手绘实现） |
 | `GET /api/demo/status` | 演示环境自检：模型是否已加载/路径/设备/默认阈值 |
 | `POST /api/demo/detect` | 支持 `conf`（置信度覆盖，灵敏度滑块）与 `no_save=true`（仅检测不入库，监控页 AI 叠加复用） |
-| `POST /api/violations/with-image` | 支持 `anno`（标注证据图）与 `detections`（帧内检测明细 JSON）字段 |
+| `POST /api/violations/with-image` | 支持 `anno`（标注证据图）与 `detections`（帧内检测明细 JSON）字段；入库后自动触发预警规则检查 |
 | `POST /api/cameras/test` | RTSP 连通性测试（8 秒兜底，不可阻塞事件循环） |
+| `GET/POST /api/warnings/rules`、`PUT/DELETE /api/warnings/rules/{id}` | 预警规则 CRUD（camera_id 空=全部、violation_type 空=全部、threshold、window_minutes、enabled） |
+| `GET /api/warnings/events` | 预警事件分页（`unread_only` 筛选） |
+| `GET /api/warnings/unread-count` | 未读预警数（顶栏铃铛 10s 轮询） |
+| `POST /api/warnings/events/read?ids=..`、`POST /api/warnings/events/read-all` | 标记已读 |
 
 `violations` 表新增列 `anno_url`（标注证据图）、`detections_json`（帧内检测明细）；后端启动时 `_ensure_schema()` 自动 ALTER TABLE 补列（SQLite/MySQL 通用）。
+
+**预警触发链路**：违规入库（`violations.py` / `demo.py` 两条路径）commit 后调用 `app/services/warnings.py::trigger_warning_check` —— 匹配启用规则 → 统计窗口内违规数 ≥ 阈值 → 生成 `warning_events`（同 camera+type 10 分钟冷却防刷屏）。预警规则/事件为新表，`create_all` 自动创建（`warning_rules`、`warning_events`）。
 
 ### 违规判定模式（`judge.py`）
 
@@ -111,7 +118,7 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 ### 技术栈要点
 
 - **Python 依赖用 uv 管理**，各子项目有独立 `pyproject.toml`（backend / inference / 根目录三份）。PyTorch 通过 `[tool.uv.sources]` 固定到 `pytorch-cu132` 索引（有 NVIDIA GPU 时装 CUDA 版，无则回落 CPU）。
-- **数据库**：`backend/app/database.py` 按 `DATABASE_URL` 是否 sqlite 区分引擎参数（SQLite 需 `check_same_thread=False`，MySQL 用连接池）。建表由 `Base.metadata.create_all` 在启动时自动完成（生产可用 `backend/init.sql`）。仅两张表：`cameras`、`violations`。
+- **数据库**：`backend/app/database.py` 按 `DATABASE_URL` 是否 sqlite 区分引擎参数（SQLite 需 `check_same_thread=False`，MySQL 用连接池）。建表由 `Base.metadata.create_all` 在启动时自动完成（生产可用 `backend/init.sql`）。四张表：`cameras`、`violations`、`warning_rules`（预警规则）、`warning_events`（预警事件）。
 - **认证**：JWT（`security.py`），前端 `utils/request.ts` 拦截器自动附加 token，401 时跳转登录页。
 - **Docker**：后端/inference 均用 `python:3.12-slim` + requirements.txt（非 pyproject）；前端 node 构建 + nginx 反代 `/api`、`/images` 到 backend。模型权重通过 volume 挂载。
 - **流媒体**：`deploy/mediamtx.yml` 配置 RTSP 入 8554、HTTP 出 8080（FLV/WebRTC），浏览器经 flv.js 播放。
@@ -123,3 +130,5 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 - 根目录 `ppe.pt` 与 `inference/weights/ppe.pt` 均存在（README 建议 docker 用 `inference/weights/` 一份）。
 - `frontend/public/camera-test.html` 是摄像头测试辅助页（静态文件）。
 - 后端启动会预热演示模型（后台线程），首次 `/api/demo/detect` 才不卡顿；前端请求超时已放宽到 60s 以覆盖冷启动。
+- **SQLite 时间戳陷阱**：SQLite 的 `CURRENT_TIMESTAMP`（`server_default`）存的是 **UTC**，与业务层本地时间比较会差 8 小时（预警窗口统计、今日统计都会错）。因此模型时间戳一律用 Python 侧 `default=datetime.now`（本地时间）写入，**不要**改回 `server_default=_func.now()`。存量 SQLite 库曾做一次性 +8h 迁移（仅本地开发库，MySQL 的 `now()` 本就是本地时间，无此问题）。
+- reportlab（`/api/logs/report` PDF 导出）已加入 `backend/pyproject.toml` 与 `requirements.txt`；若 `uv sync` 因 ultralytics 解析失败（网络/索引问题，与本项目代码无关），可用 `uv pip install reportlab==4.2.5 --python ../.venv/Scripts/python.exe` 单独补装。

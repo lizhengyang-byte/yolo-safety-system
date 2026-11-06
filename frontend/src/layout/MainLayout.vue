@@ -29,6 +29,10 @@
           <el-icon><Warning /></el-icon>
           <span>违规记录</span>
         </el-menu-item>
+        <el-menu-item index="/warning">
+          <el-icon><Bell /></el-icon>
+          <span>预警中心</span>
+        </el-menu-item>
         <el-menu-item index="/log">
           <el-icon><Document /></el-icon>
           <span>安全日志</span>
@@ -39,16 +43,24 @@
     <el-container>
       <el-header class="header">
         <span class="title">{{ $route.meta.title }}</span>
-        <el-dropdown @command="handleCommand">
-          <span class="user">
-            <el-icon><User /></el-icon> admin
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <div class="header-right">
+          <!-- 预警铃铛：未读数徽标 + 新增预警实时提醒 -->
+          <el-badge :value="unread" :hidden="unread === 0" class="bell">
+            <el-button circle @click="router.push('/warning')">
+              <el-icon><Bell /></el-icon>
+            </el-button>
+          </el-badge>
+          <el-dropdown @command="handleCommand">
+            <span class="user">
+              <el-icon><User /></el-icon> admin
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </el-header>
 
       <el-main class="main">
@@ -59,9 +71,34 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { ElNotification } from "element-plus";
+import { getUnreadCount } from "@/api/warning";
 
 const router = useRouter();
+const unread = ref(0);
+let lastUnread = 0;
+let bellTimer: number | null = null;
+
+/** 轮询未读预警数：增加时顶栏弹红色预警通知 */
+async function pollUnread() {
+  try {
+    const { count } = await getUnreadCount();
+    unread.value = count;
+    if (count > 0 && count !== lastUnread) {
+      ElNotification({
+        title: "预警提醒",
+        message: `当前有 ${count} 条未读预警事件，点击铃铛查看`,
+        type: "warning",
+        duration: 6000,
+      });
+    }
+    lastUnread = count;
+  } catch {
+    /* 后端暂不可用则跳过 */
+  }
+}
 
 function handleCommand(cmd: string) {
   if (cmd === "logout") {
@@ -69,6 +106,15 @@ function handleCommand(cmd: string) {
     router.push("/login");
   }
 }
+
+onMounted(() => {
+  pollUnread();
+  bellTimer = window.setInterval(pollUnread, 10000);
+});
+
+onBeforeUnmount(() => {
+  if (bellTimer) window.clearInterval(bellTimer);
+});
 </script>
 
 <style scoped>
@@ -97,6 +143,15 @@ function handleCommand(cmd: string) {
 .title {
   font-size: 18px;
   font-weight: 600;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.bell {
+  display: flex;
+  align-items: center;
 }
 .user {
   display: flex;

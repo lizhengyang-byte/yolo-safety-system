@@ -39,6 +39,8 @@ export interface DashboardData {
   trend: TrendPoint[];
   types: { type: string; count: number }[];
   ranking: { name: string; count: number }[];
+  /** 点位（安装位置）违规排行 */
+  location_ranking: { location: string; count: number }[];
 }
 
 export function listViolations(params: QueryParams) {
@@ -52,7 +54,9 @@ export function getStats() {
   }>;
 }
 
-/** 数据看板聚合数据（总数 / 今日 / 趋势 / 类型分布 / 摄像头排行） */
-export function getDashboard() {
-  return request.get("/api/logs/dashboard") as Promise<DashboardData>;
+/** 数据看板聚合数据（总数 / 今日 / 趋势 / 类型分布 / 摄像头排行 / 点位排行）
+ * @param days 统计窗口天数（默认 7，看板可切换 30 / 90 查看长期趋势）
+ */
+export function getDashboard(days = 7) {
+  return request.get("/api/logs/dashboard", { params: { days } }) as Promise<DashboardData>;
 }

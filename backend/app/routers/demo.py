@@ -24,6 +24,7 @@ from ..detection.annotate import draw_annotations
 from ..detection.detector import YoloDetector
 from ..detection.judge import judge_violations
 from ..models import Violation
+from ..services.warnings import trigger_warning_check
 
 router = APIRouter()
 
@@ -163,6 +164,8 @@ async def demo_detect(
     )
     db.add(v)
     db.commit()
+    # 预警规则检查（commit 后统计，需包含刚入库记录）
+    trigger_warning_check(db, 0, "临时演示", sorted(violations)[0])
     # 返回标注证据图作为抓拍展示（更有说服力）
     result["snapshot_url"] = f"/images/{anno_fname}"
 

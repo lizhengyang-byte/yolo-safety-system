@@ -82,6 +82,56 @@ class CameraTestResult(BaseModel):
     message: str
 
 
+# ---------- 预警规则 ----------
+class WarningRuleBase(BaseModel):
+    name: str = Field(..., max_length=64)
+    camera_id: Optional[int] = None
+    violation_type: Optional[str] = None
+    threshold: int = Field(3, ge=1, le=10000)
+    window_minutes: int = Field(60, ge=1, le=1440)
+    enabled: bool = True
+
+
+class WarningRuleCreate(WarningRuleBase):
+    pass
+
+
+class WarningRuleUpdate(BaseModel):
+    name: Optional[str] = None
+    camera_id: Optional[int] = None
+    violation_type: Optional[str] = None
+    threshold: Optional[int] = Field(None, ge=1, le=10000)
+    window_minutes: Optional[int] = Field(None, ge=1, le=1440)
+    enabled: Optional[bool] = None
+
+
+class WarningRuleOut(WarningRuleBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WarningEventOut(BaseModel):
+    id: int
+    rule_id: Optional[int]
+    camera_id: int
+    camera_name: str
+    violation_type: str
+    count: int
+    triggered_at: datetime
+    is_read: bool
+
+    class Config:
+        from_attributes = True
+
+
+class WarningEventPage(BaseModel):
+    total: int
+    items: List[WarningEventOut]
+
+
 # ---------- 通用 ----------
 class MessageOut(BaseModel):
     message: str

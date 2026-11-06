@@ -1,17 +1,18 @@
-"""安全日志：统计 + 数据看板聚合 + Excel 导出（含违规图片）"""
+"""安全日志：统计 + 数据看板聚合 + Excel/PDF 导出（Excel 含违规图片）"""
 import io
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
+from ..detection.annotate import VIOLATION_LABELS
 from ..models import Camera, Violation
 
 router = APIRouter()
@@ -72,8 +73,11 @@ def stats(db: Session = Depends(get_db)):
 
 
 @router.get("/dashboard")
-def dashboard(db: Session = Depends(get_db)):
-    """数据看板聚合接口：总数 / 今日 / 在线摄像头 / 近7天趋势 / 类型分布 / 摄像头排行"""
+def dashboard(days: int = Query(7, ge=1, le=90), db: Session = Depends(get_db)):
+    """数据看板聚合接口：总数 / 今日 / 在线摄像头 / 近N天趋势 / 类型分布 / 摄像头排行 / 点位排行。
+
+    days：趋势与分布类统计的窗口天数（默认 7，前端可切换 30 / 90 查看长期趋势）。
+    """
     total = db.query(func.count(Violation.id)).scalar() or 0
     today = (
         db.query(func.count(Violation.id))
@@ -85,35 +89,61 @@ def dashboard(db: Session = Depends(get_db)):
         db.query(func.count(Camera.id)).filter(Camera.status == "online").scalar() or 0
     )
 
-    # 近 7 天趋势（含 0 天）
+    # 统计窗口起点（含当天共 days 天）
+    start_dt = datetime.combine(
+        date.today() - timedelta(days=days - 1), datetime.min.time()
+    )
+
+    # 近 N 天趋势（含 0 天）
     day_rows = (
         db.query(func.date(Violation.created_at).label("d"), func.count(Violation.id))
+        .filter(Violation.created_at >= start_dt)
         .group_by(func.date(Violation.created_at))
         .all()
     )
     day_map = {str(d): c for d, c in day_rows}
     trend = []
-    for i in range(6, -1, -1):
+    for i in range(days - 1, -1, -1):
         d = date.today() - timedelta(days=i)
         trend.append({"date": d.isoformat(), "count": day_map.get(d.isoformat(), 0)})
 
-    # 类型分布
+    # 窗口内类型分布
     type_rows = (
         db.query(Violation.violation_type, func.count(Violation.id))
+        .filter(Violation.created_at >= start_dt)
         .group_by(Violation.violation_type)
+        .order_by(func.count(Violation.id).desc())
         .all()
     )
     types = [{"type": t, "count": c} for t, c in type_rows]
 
-    # 摄像头违规排行
+    # 窗口内摄像头违规排行
     cam_rows = (
         db.query(Violation.camera_name, func.count(Violation.id))
+        .filter(Violation.created_at >= start_dt)
         .group_by(Violation.camera_name)
         .order_by(func.count(Violation.id).desc())
         .limit(10)
         .all()
     )
     ranking = [{"name": n or "未知", "count": c} for n, c in cam_rows]
+
+    # 窗口内点位（安装位置）违规排行：violations LEFT JOIN cameras 取 location
+    loc_rows = (
+        db.query(
+            func.coalesce(Camera.location, "").label("loc"),
+            func.count(Violation.id),
+        )
+        .filter(Violation.created_at >= start_dt)
+        .outerjoin(Camera, Violation.camera_id == Camera.id)
+        .group_by(func.coalesce(Camera.location, ""))
+        .order_by(func.count(Violation.id).desc())
+        .limit(8)
+        .all()
+    )
+    location_ranking = [
+        {"location": loc or "未填点位", "count": c} for loc, c in loc_rows
+    ]
 
     return {
         "total": total,
@@ -122,6 +152,7 @@ def dashboard(db: Session = Depends(get_db)):
         "trend": trend,
         "types": types,
         "ranking": ranking,
+        "location_ranking": location_ranking,
     }
 
 
@@ -235,3 +266,358 @@ def export_excel(
                 )
             },
         )
+
+
+# ---------- PDF 安全报告导出（周报 / 月报） ----------
+_PDF_FONT = "STSong-Light"
+_pdf_fonts_ready = False
+
+
+def _ensure_pdf_fonts():
+    """注册 reportlab 内置中文字体（STSong-Light CID 字体，无需外部字体文件）。
+
+    Windows 与 Docker（python:3.12-slim）均可直接用，避免依赖系统中文字体。
+    """
+    global _pdf_fonts_ready
+    if _pdf_fonts_ready:
+        return
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+    pdfmetrics.registerFont(UnicodeCIDFont(_PDF_FONT))
+    _pdf_fonts_ready = True
+
+
+def _pdf_table_style():
+    """PDF 表格统一样式：表头深蓝底白字 + 细网格"""
+    from reportlab.lib.colors import HexColor
+    from reportlab.platypus import TableStyle
+
+    style = TableStyle(
+        [
+            ("FONTNAME", (0, 0), (-1, -1), _PDF_FONT),
+            ("FONTSIZE", (0, 0), (-1, -1), 9.5),
+            ("GRID", (0, 0), (-1, -1), 0.4, HexColor("#dcdfe6")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("BACKGROUND", (0, 0), (-1, 0), HexColor("#1f3b73")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), HexColor("#ffffff")),
+        ]
+    )
+    return style
+
+
+def _build_trend_chart(trend: list):
+    """手绘折线趋势图（shapes 原语，不依赖 charts 组件——reportlab 4.2 重构后
+    LineChart 经典 data API 已变更，手绘最稳定且 7/30 天标签密度自适应）"""
+    from reportlab.graphics.shapes import (
+        Circle,
+        Drawing,
+        Line,
+        PolyLine,
+        String,
+    )
+    from reportlab.lib.colors import HexColor
+
+    n = len(trend)
+    counts = [p["count"] for p in trend]
+    maxc = max(counts) or 1
+
+    left, bottom, width, height = 52, 36, 390, 128
+    drawing = Drawing(470, 190)
+
+    # 水平网格线 + Y 轴刻度（4 等分）
+    for i in range(5):
+        y = bottom + height * i / 4
+        drawing.add(
+            Line(left, y, left + width, y, strokeColor=HexColor("#ebeef5"), strokeWidth=0.5)
+        )
+        drawing.add(
+            String(left - 10, y - 3, str(round(maxc * i / 4)), fontSize=7)
+        )
+    # 坐标轴
+    drawing.add(
+        Line(left, bottom, left + width, bottom, strokeColor=HexColor("#909399"), strokeWidth=0.8)
+    )
+    drawing.add(
+        Line(left, bottom, left, bottom + height, strokeColor=HexColor("#909399"), strokeWidth=0.8)
+    )
+
+    # 折线 + 数据点
+    pts = []
+    step_x = width / max(1, n - 1)
+    for i, c in enumerate(counts):
+        x = left + step_x * i
+        y = bottom + height * c / maxc
+        pts.append((x, y))
+        drawing.add(Circle(x, y, 1.6, fillColor=HexColor("#f56c6c")))
+    drawing.add(
+        PolyLine(pts, strokeColor=HexColor("#f56c6c"), strokeWidth=1.6)
+    )
+
+    # X 轴日期标签（间隔显示，避免 30 天标签重叠）
+    step = max(1, n // 8)
+    for i, p in enumerate(trend):
+        if i % step == 0 or i == n - 1:
+            x = left + step_x * i
+            label = String(x, bottom - 14, p["date"][5:], fontSize=7)
+            label.textAnchor = "middle"
+            drawing.add(label)
+
+    return drawing
+
+
+@router.get("/report")
+def export_report(period: str = Query("week", pattern="^(week|month)$"), db: Session = Depends(get_db)):
+    """导出安全报告 PDF：周报（近 7 天）/ 月报（近 30 天）。
+
+    内容：统计摘要（期间违规总数/日均/今日/在线摄像头）、违规趋势图、
+    类型分布、点位排行、违规明细（前 50 条）。
+    """
+    try:
+        import reportlab  # noqa: F401
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="reportlab 未安装，无法生成 PDF 报告",
+        )
+    _ensure_pdf_fonts()
+
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    days = 7 if period == "week" else 30
+    period_name = "周报" if period == "week" else "月报"
+    start_dt = datetime.combine(
+        date.today() - timedelta(days=days - 1), datetime.min.time()
+    )
+
+    total = (
+        db.query(func.count(Violation.id))
+        .filter(Violation.created_at >= start_dt)
+        .scalar()
+        or 0
+    )
+    today_n = (
+        db.query(func.count(Violation.id))
+        .filter(func.date(Violation.created_at) == date.today())
+        .scalar()
+        or 0
+    )
+    online = (
+        db.query(func.count(Camera.id)).filter(Camera.status == "online").scalar() or 0
+    )
+    avg_per_day = round(total / days, 1)
+
+    # 趋势
+    day_rows = (
+        db.query(func.date(Violation.created_at).label("d"), func.count(Violation.id))
+        .filter(Violation.created_at >= start_dt)
+        .group_by(func.date(Violation.created_at))
+        .all()
+    )
+    day_map = {str(d): c for d, c in day_rows}
+    trend = []
+    for i in range(days - 1, -1, -1):
+        d = date.today() - timedelta(days=i)
+        trend.append({"date": d.isoformat(), "count": day_map.get(d.isoformat(), 0)})
+
+    # 类型分布（窗口内）
+    type_rows = (
+        db.query(Violation.violation_type, func.count(Violation.id))
+        .filter(Violation.created_at >= start_dt)
+        .group_by(Violation.violation_type)
+        .order_by(func.count(Violation.id).desc())
+        .all()
+    )
+    # 点位排行（窗口内）
+    loc_rows = (
+        db.query(
+            func.coalesce(Camera.location, "").label("loc"),
+            func.count(Violation.id),
+        )
+        .filter(Violation.created_at >= start_dt)
+        .outerjoin(Camera, Violation.camera_id == Camera.id)
+        .group_by(func.coalesce(Camera.location, ""))
+        .order_by(func.count(Violation.id).desc())
+        .limit(8)
+        .all()
+    )
+    # 明细（前 50 条）
+    details = (
+        db.query(Violation)
+        .filter(Violation.created_at >= start_dt)
+        .order_by(Violation.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    # ---------- 构建 PDF ----------
+    title_style = ParagraphStyle(
+        "title", fontName=_PDF_FONT, fontSize=20, leading=28, alignment=TA_CENTER
+    )
+    sub_style = ParagraphStyle(
+        "sub",
+        fontName=_PDF_FONT,
+        fontSize=10,
+        leading=16,
+        alignment=TA_CENTER,
+        textColor=HexColor("#888888"),
+    )
+    h2_style = ParagraphStyle(
+        "h2",
+        fontName=_PDF_FONT,
+        fontSize=14,
+        leading=20,
+        spaceBefore=16,
+        spaceAfter=6,
+        textColor=HexColor("#1f3b73"),
+    )
+    cell = ParagraphStyle("cell", fontName=_PDF_FONT, fontSize=9.5, leading=14)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+        leftMargin=16 * mm,
+        rightMargin=16 * mm,
+    )
+    story = [
+        Paragraph(f"工地AI安全智能监测系统 — 安全{period_name}", title_style),
+        Paragraph(
+            f"统计区间：{trend[0]['date']} ~ {trend[-1]['date']}　|　"
+            f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            sub_style,
+        ),
+        Spacer(1, 8),
+    ]
+
+    # 统计摘要
+    summary = Table(
+        [
+            [
+                Paragraph(f"<b>{total}</b>", cell),
+                Paragraph(f"<b>{avg_per_day}</b>", cell),
+                Paragraph(f"<b>{today_n}</b>", cell),
+                Paragraph(f"<b>{online}</b>", cell),
+            ],
+            [
+                Paragraph("期间违规总数", cell),
+                Paragraph("日均违规", cell),
+                Paragraph("今日违规", cell),
+                Paragraph("在线摄像头", cell),
+            ],
+        ],
+        colWidths=[42 * mm] * 4,
+    )
+    summary.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), _PDF_FONT),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("BACKGROUND", (0, 0), (-1, -1), HexColor("#f5f7fa")),
+                ("GRID", (0, 0), (-1, -1), 0.5, HexColor("#dcdfe6")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    story.append(summary)
+
+    # 趋势图
+    story.append(Paragraph("违规趋势（按天）", h2_style))
+    story.append(_build_trend_chart(trend))
+
+    # 类型分布 + 点位排行
+    story.append(Paragraph("违规类型分布", h2_style))
+    type_total = sum(c for _, c in type_rows) or 1
+    tdata = [
+        [Paragraph("违规类型", cell), Paragraph("数量", cell), Paragraph("占比", cell)]
+    ]
+    if type_rows:
+        for t, c in type_rows:
+            tdata.append(
+                [
+                    Paragraph(VIOLATION_LABELS.get(t, t), cell),
+                    Paragraph(str(c), cell),
+                    Paragraph(f"{c / type_total * 100:.1f}%", cell),
+                ]
+            )
+    else:
+        tdata.append([Paragraph("（窗口内暂无违规记录）", cell), "", ""])
+    ttable = Table(tdata, colWidths=[90 * mm, 30 * mm, 30 * mm])
+    ttable.setStyle(_pdf_table_style())
+    story.append(ttable)
+
+    story.append(Paragraph("点位违规排行", h2_style))
+    loc_total = sum(c for _, c in loc_rows) or 1
+    ldata = [
+        [Paragraph("点位", cell), Paragraph("违规数", cell), Paragraph("占比", cell)]
+    ]
+    if loc_rows:
+        for loc, c in loc_rows:
+            ldata.append(
+                [
+                    Paragraph(loc or "未填点位", cell),
+                    Paragraph(str(c), cell),
+                    Paragraph(f"{c / loc_total * 100:.1f}%", cell),
+                ]
+            )
+    else:
+        ldata.append([Paragraph("（窗口内暂无违规记录）", cell), "", ""])
+    ltable = Table(ldata, colWidths=[90 * mm, 30 * mm, 30 * mm])
+    ltable.setStyle(_pdf_table_style())
+    story.append(ltable)
+
+    # 违规明细
+    story.append(Paragraph(f"期间违规明细（前 {len(details)} 条）", h2_style))
+    ddata = [
+        [
+            Paragraph("抓拍时间", cell),
+            Paragraph("摄像头", cell),
+            Paragraph("违规类型", cell),
+            Paragraph("置信度", cell),
+        ]
+    ]
+    for v in details:
+        ddata.append(
+            [
+                Paragraph(
+                    v.created_at.strftime("%Y-%m-%d %H:%M:%S") if v.created_at else "",
+                    cell,
+                ),
+                Paragraph(v.camera_name or "未知", cell),
+                Paragraph(VIOLATION_LABELS.get(v.violation_type, v.violation_type), cell),
+                Paragraph(f"{v.confidence or 0:.1%}", cell),
+            ]
+        )
+    dtable = Table(ddata, colWidths=[40 * mm, 40 * mm, 50 * mm, 20 * mm], repeatRows=1)
+    dtable.setStyle(_pdf_table_style())
+    story.append(dtable)
+
+    doc.build(story)
+    buf.seek(0)
+
+    fname = f"安全{period_name}_{trend[0]['date']}_{trend[-1]['date']}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=safety_report.pdf; "
+                f"filename*=UTF-8''{quote(fname)}"
+            )
+        },
+    )

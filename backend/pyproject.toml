@@ -16,6 +16,7 @@ dependencies = [
     "python-multipart==0.0.20",
     "pandas==2.2.3",
     "openpyxl==3.1.5",
+    "reportlab==4.2.5",
     # 临时演示模式：后端直接加载 YOLO 推理
     "ultralytics==8.3.42",
     "opencv-python-headless==4.10.0.84",

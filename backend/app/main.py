@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
-from .routers import auth, cameras, demo, logs, violations
+from .routers import auth, cameras, demo, logs, violations, warnings
 
 # 建表（生产环境建议用 init.sql 或 alembic 迁移）
 Base.metadata.create_all(bind=engine)
@@ -86,6 +86,7 @@ app.include_router(cameras.router, prefix="/api/cameras", tags=["摄像头"])
 app.include_router(violations.router, prefix="/api/violations", tags=["违规记录"])
 app.include_router(logs.router, prefix="/api/logs", tags=["安全日志"])
 app.include_router(demo.router, prefix="/api/demo", tags=["临时演示"])
+app.include_router(warnings.router, prefix="/api/warnings", tags=["预警中心"])
 
 
 @app.get("/api/health", tags=["健康检查"])

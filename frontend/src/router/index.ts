@@ -42,6 +42,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "违规记录" },
       },
       {
+        path: "warning",
+        name: "Warning",
+        component: () => import("@/views/warning/index.vue"),
+        meta: { title: "预警中心" },
+      },
+      {
         path: "log",
         name: "Log",
         component: () => import("@/views/log/index.vue"),

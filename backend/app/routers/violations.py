@@ -10,6 +10,7 @@ from ..config import settings
 from ..database import get_db
 from ..models import Violation
 from ..schemas import ViolationCreate, ViolationOut, ViolationPage
+from ..services.warnings import trigger_warning_check
 
 router = APIRouter()
 
@@ -28,6 +29,8 @@ def report_violation(body: ViolationCreate, db: Session = Depends(get_db)):
     db.add(v)
     db.commit()
     db.refresh(v)
+    # 预警规则检查（commit 后统计，需包含刚入库记录）
+    trigger_warning_check(db, body.camera_id, body.camera_name, body.violation_type)
     return v
 
 
@@ -90,6 +93,8 @@ async def report_violation_with_image(
     db.add(v)
     db.commit()
     db.refresh(v)
+    # 预警规则检查（commit 后统计，需包含刚入库记录）
+    trigger_warning_check(db, camera_id, camera_name, violation_type)
     return v
 
 
