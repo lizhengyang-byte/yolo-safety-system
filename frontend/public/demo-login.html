@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>演示登录中 · 智慧工地 AI 安全监测</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        color: #cfe2ff;
+        background:
+          radial-gradient(900px 500px at 70% 15%, rgba(47, 107, 255, 0.28), transparent 60%),
+          radial-gradient(700px 420px at 15% 90%, rgba(34, 211, 238, 0.16), transparent 55%),
+          #060b18;
+      }
+      .box { text-align: center; }
+      .ring {
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 18px;
+        border-radius: 50%;
+        border: 3px solid rgba(79, 156, 255, 0.18);
+        border-top-color: #22d3ee;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      h1 { font-size: 18px; font-weight: 700; letter-spacing: 2px; }
+      p { margin-top: 8px; font-size: 13px; color: #7d93b5; letter-spacing: 1px; }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <div class="ring"></div>
+      <h1>正在进入演示页面…</h1>
+      <p id="msg">正在完成自动登录，请稍候</p>
+    </div>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var token = params.get("token");
+        var to = params.get("to") || "/dashboard";
+        var msg = document.getElementById("msg");
+
+        if (!token) {
+          msg.textContent = "缺少 token，无法自动登录（请通过 start-demo.py 打开）";
+          return;
+        }
+        try {
+          localStorage.setItem("token", token);
+        } catch (e) {
+          msg.textContent = "浏览器禁用了本地存储，无法登录：" + e;
+          return;
+        }
+        // 只允许站内绝对路径，避免开放跳转
+        var safeTo =
+          to.charAt(0) === "/" && to.charAt(1) !== "/" ? to : "/dashboard";
+        window.location.replace(safeTo);
+      })();
+    </script>
+  </body>
+</html>

@@ -14,6 +14,7 @@
   python start-local.py               # 启动后端 + 前端
   python start-local.py --inference   # 后端 + 前端 + 推理服务
   python start-local.py --inline      # 同一终端输出日志（Ctrl+C 全部停止）
+  python start-local.py --open screen # 启动完成后自动打开智慧大屏
 """
 
 from __future__ import annotations
@@ -150,6 +151,8 @@ def main() -> int:
                         help="启动后不做端口健康检查（默认会等待后端/前端就绪）")
     parser.add_argument("--timeout", type=float, default=60.0,
                         help="健康检查超时秒数（默认 60）")
+    parser.add_argument("--open", choices=["none", "dashboard", "screen", "demo"],
+                        default="none", help="启动后自动打开的页面（默认 none 不打开）")
     args = parser.parse_args()
 
     setup_console()
@@ -220,8 +223,26 @@ def main() -> int:
 
     log("访问地址：", color="cyan")
     log(f"  后端接口文档  http://localhost:{BACKEND_PORT}/docs", color="cyan")
-    log(f"  前端后台      http://localhost:{FRONTEND_PORT}   (默认账号 admin / admin123)", color="cyan")
+    log(f"  后台数据看板  http://localhost:{FRONTEND_PORT}/dashboard   (默认账号 admin / admin123)", color="cyan")
+    log(f"  智慧大屏      http://localhost:{FRONTEND_PORT}/screen", color="cyan")
+    log(f"  临时演示      http://localhost:{FRONTEND_PORT}/demo", color="cyan")
     log("违规图片      http://localhost:8000/images/xxx.jpg", color="cyan")
+
+    # 可选：自动打开指定页面
+    if args.open != "none":
+        page_path = {"dashboard": "", "screen": "/screen", "demo": "/demo"}[args.open]
+        url = f"http://localhost:{FRONTEND_PORT}{page_path}"
+        if wait_for_port(FRONTEND_PORT, "前端", 10):
+            try:
+                import webbrowser
+
+                webbrowser.open(url)
+                log(f"已在浏览器打开：{url}", color="cyan")
+            except Exception as exc:  # noqa: BLE001
+                log(f"自动打开浏览器失败（{exc}），请手动访问 {url}", color="yellow")
+        else:
+            log(f"前端尚未就绪，请稍后手动访问 {url}", color="yellow")
+
     if args.inline:
         log("按 Ctrl+C 停止所有服务。", color="yellow")
 

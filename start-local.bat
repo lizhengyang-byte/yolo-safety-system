@@ -19,9 +19,13 @@ REM start "yolo-inference" cmd /k "cd /d %~dp0 && set CONFIG_PATH=inference\conf
 echo.
 echo 已启动服务（各服务独立窗口，关闭窗口即停止）：
 echo   后端接口文档: http://localhost:8000/docs
-echo   前端后台:     http://localhost:3000   (默认账号 admin / admin123)
+echo   后台数据看板: http://localhost:3000/dashboard   (默认账号 admin / admin123)
+echo   智慧大屏:     http://localhost:3000/screen
+echo   临时演示:     http://localhost:3000/demo
 echo.
 echo 提示：推理服务默认未启动，需先在后台「摄像头管理」录入设备，
 echo       再取消本脚本第 3 步注释后重新运行。
 echo.
+REM 如需启动后自动打开智慧大屏，取消下一行注释（等待前端编译完成）
+REM timeout /t 6 /nobreak >nul & start "" http://localhost:3000/screen
 pause

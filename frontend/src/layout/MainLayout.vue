@@ -85,6 +85,9 @@
         </div>
 
         <div class="topbar-right">
+          <button class="icon-btn" title="进入智慧大屏" @click="router.push('/screen')">
+            <el-icon><DataBoard /></el-icon>
+          </button>
           <el-badge :value="unread" :hidden="unread === 0" class="bell">
             <button class="icon-btn bell-btn" title="预警提醒" @click="router.push('/warning')">
               <el-icon><Bell /></el-icon>

@@ -7,6 +7,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/views/Login.vue"),
   },
   {
+    // 智慧大屏：独立全屏路由（不套后台 MainLayout，无侧栏/顶栏）
+    path: "/screen",
+    name: "Screen",
+    component: () => import("@/views/screen/index.vue"),
+    meta: { title: "智慧大屏" },
+  },
+  {
     path: "/",
     component: () => import("@/layout/MainLayout.vue"),
     redirect: "/dashboard",

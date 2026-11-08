@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import get_db
 from ..detection.annotate import VIOLATION_LABELS
-from ..models import Camera, Violation
+from ..models import Camera, Violation, WarningEvent
 
 router = APIRouter()
 
@@ -74,7 +74,18 @@ def stats(db: Session = Depends(get_db)):
 
 @router.get("/dashboard")
 def dashboard(days: int = Query(7, ge=1, le=90), db: Session = Depends(get_db)):
-    """数据看板聚合接口：总数 / 今日 / 在线摄像头 / 近N天趋势 / 类型分布 / 摄像头排行 / 点位排行。
+    """数据看板聚合接口（管理台 + 智慧大屏共用）。
+
+    基础字段（保持向后兼容）：总数 / 今日 / 在线摄像头 / 近N天趋势 / 类型分布 /
+    摄像头排行 / 点位排行。
+
+    大屏增强字段（仅追加，不改旧字段）：
+      - deltas：今日与上一日、本窗口与上一窗口的环比
+      - hourly：今日 0-23 时违规分布（24 点）
+      - avg_confidence：窗口内平均识别置信度（0~1）
+      - latest：最新 6 条违规（含图片 / 点位 / 置信度）
+      - camera_status：摄像头在线状态 + 窗口内违规数
+      - warning_summary：未读 / 今日预警数 + 最新 5 条预警事件
 
     days：趋势与分布类统计的窗口天数（默认 7，前端可切换 30 / 90 查看长期趋势）。
     """
@@ -145,6 +156,138 @@ def dashboard(days: int = Query(7, ge=1, le=90), db: Session = Depends(get_db)):
         {"location": loc or "未填点位", "count": c} for loc, c in loc_rows
     ]
 
+    # ---- 大屏增强字段（只追加，不改旧字段）----
+    window_total = sum(p["count"] for p in trend)
+
+    # 上一统计窗口（紧邻 start_dt 之前的 days 天）
+    prev_start = start_dt - timedelta(days=days)
+    prev_total = (
+        db.query(func.count(Violation.id))
+        .filter(Violation.created_at >= prev_start)
+        .filter(Violation.created_at < start_dt)
+        .scalar()
+        or 0
+    )
+    # 上一日（昨日）违规数
+    yesterday = date.today() - timedelta(days=1)
+    today_prev = (
+        db.query(func.count(Violation.id))
+        .filter(func.date(Violation.created_at) == yesterday)
+        .scalar()
+        or 0
+    )
+    growth_pct = (
+        round((window_total - prev_total) * 100.0 / prev_total, 1) if prev_total else None
+    )
+    deltas = {
+        "today_prev": today_prev,
+        "today_delta": today - today_prev,
+        "week_prev": prev_total,
+        "week_delta": window_total - prev_total,
+        "growth_pct": growth_pct,
+    }
+
+    # 今日 0-23 时分布（Python 侧分桶，避免 SQLite/MySQL 方言差异）
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    hour_rows = (
+        db.query(Violation.created_at)
+        .filter(Violation.created_at >= today_start)
+        .all()
+    )
+    hour_counts = [0] * 24
+    for (ts,) in hour_rows:
+        if ts is not None and 0 <= ts.hour < 24:
+            hour_counts[ts.hour] += 1
+    hourly = [{"hour": h, "count": hour_counts[h]} for h in range(24)]
+
+    # 窗口内平均置信度
+    avg_conf = (
+        db.query(func.avg(Violation.confidence))
+        .filter(Violation.created_at >= start_dt)
+        .scalar()
+    )
+    avg_confidence = round(float(avg_conf), 3) if avg_conf is not None else 0.0
+
+    # 最新 6 条违规（含点位）
+    latest_rows = (
+        db.query(Violation, Camera.location)
+        .outerjoin(Camera, Violation.camera_id == Camera.id)
+        .order_by(Violation.created_at.desc())
+        .limit(6)
+        .all()
+    )
+    latest = [
+        {
+            "id": v.id,
+            "camera_id": v.camera_id,
+            "camera_name": v.camera_name or "未知",
+            "location": loc or "",
+            "violation_type": v.violation_type,
+            "confidence": round(float(v.confidence or 0), 3),
+            "image_url": v.image_url or "",
+            "anno_url": v.anno_url or "",
+            "created_at": v.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            if v.created_at
+            else "",
+        }
+        for v, loc in latest_rows
+    ]
+
+    # 摄像头在线状态 + 窗口内违规数
+    cameras = db.query(Camera).order_by(Camera.id).all()
+    cam_count_rows = (
+        db.query(Violation.camera_id, func.count(Violation.id))
+        .filter(Violation.created_at >= start_dt)
+        .group_by(Violation.camera_id)
+        .all()
+    )
+    cam_count_map = {cid: c for cid, c in cam_count_rows}
+    camera_status = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "location": c.location or "",
+            "status": c.status or "offline",
+            "enabled": bool(c.enabled),
+            "recent_count": cam_count_map.get(c.id, 0),
+        }
+        for c in cameras
+    ]
+
+    # 预警摘要（未读 / 今日 / 最新 5 条）
+    unread = (
+        db.query(func.count(WarningEvent.id))
+        .filter(WarningEvent.is_read == False)  # noqa: E712
+        .scalar()
+        or 0
+    )
+    warn_today = (
+        db.query(func.count(WarningEvent.id))
+        .filter(func.date(WarningEvent.triggered_at) == date.today())
+        .scalar()
+        or 0
+    )
+    warn_rows = (
+        db.query(WarningEvent).order_by(WarningEvent.triggered_at.desc()).limit(5).all()
+    )
+    warning_summary = {
+        "unread": unread,
+        "today": warn_today,
+        "latest": [
+            {
+                "id": w.id,
+                "camera_name": w.camera_name or "未知",
+                "violation_type": w.violation_type,
+                "count": w.count,
+                "is_read": bool(w.is_read),
+                "triggered_at": w.triggered_at.strftime("%Y-%m-%d %H:%M:%S")
+                if w.triggered_at
+                else "",
+            }
+            for w in warn_rows
+        ],
+    }
+
     return {
         "total": total,
         "today": today,
@@ -153,6 +296,12 @@ def dashboard(days: int = Query(7, ge=1, le=90), db: Session = Depends(get_db)):
         "types": types,
         "ranking": ranking,
         "location_ranking": location_ranking,
+        "deltas": deltas,
+        "hourly": hourly,
+        "avg_confidence": avg_confidence,
+        "latest": latest,
+        "camera_status": camera_status,
+        "warning_summary": warning_summary,
     }
 
 

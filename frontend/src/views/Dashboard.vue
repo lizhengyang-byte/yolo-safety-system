@@ -11,17 +11,22 @@
             <el-radio-button :label="90">近 90 天</el-radio-button>
           </el-radio-group>
         </div>
-        <el-dropdown @command="exportReport">
-          <el-button type="primary" :loading="exporting">
-            导出 PDF 报告<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+        <div class="toolbar-actions">
+          <el-button class="screen-entry" @click="openScreen">
+            <el-icon class="el-icon--left"><DataBoard /></el-icon>进入智慧大屏
           </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="week">安全周报（近 7 天）</el-dropdown-item>
-              <el-dropdown-item command="month">安全月报（近 30 天）</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+          <el-dropdown @command="exportReport">
+            <el-button type="primary" :loading="exporting">
+              导出 PDF 报告<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="week">安全周报（近 7 天）</el-dropdown-item>
+                <el-dropdown-item command="month">安全月报（近 30 天）</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </div>
     </el-card>
 
@@ -36,6 +41,9 @@
           <div class="stat-body">
             <div class="stat-num tnum">{{ c.value }}</div>
             <div class="stat-label">{{ c.label }}</div>
+            <div v-if="c.delta" class="stat-delta" :class="c.delta.up ? 'up' : 'down'">
+              {{ c.delta.text }}
+            </div>
           </div>
         </div>
       </el-col>
@@ -93,6 +101,36 @@
       </el-col>
     </el-row>
 
+    <!-- 最新抓拍 -->
+    <el-card class="panel latest-card">
+      <template #header>
+        <div class="card-head-title">
+          <span class="ico"><el-icon><Camera /></el-icon></span>
+          最新抓拍
+          <span class="head-hint">实时同步最近 6 条违规证据图</span>
+        </div>
+      </template>
+      <div v-if="latest.length" class="latest-grid">
+        <div v-for="v in latest" :key="v.id" class="latest-item">
+          <el-image
+            class="latest-img"
+            :src="v.anno_url || v.image_url"
+            fit="cover"
+            :preview-src-list="[v.anno_url || v.image_url]"
+            preview-teleported
+          />
+          <div class="latest-meta">
+            <span class="latest-type" :style="{ color: typeColor(v.violation_type) }">
+              {{ VIOLATION_TYPE_MAP[v.violation_type] || v.violation_type }}
+            </span>
+            <span class="latest-cam">{{ v.camera_name }}</span>
+            <span class="latest-time">{{ (v.created_at || "").slice(5, 16) }}</span>
+          </div>
+        </div>
+      </div>
+      <el-empty v-else description="暂无抓拍记录" :image-size="70" />
+    </el-card>
+
     <!-- 系统说明 -->
     <el-card class="system-card">
       <div class="system-info">
@@ -119,6 +157,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import axios from "axios";
+import { useRouter } from "vue-router";
 import { ElMessage, ElNotification } from "element-plus";
 import { ArrowDown } from "@element-plus/icons-vue";
 // 按需引入 ECharts（避免全量包导致路由 chunk 过大）
@@ -132,9 +171,14 @@ import {
 import { CanvasRenderer } from "echarts/renderers";
 import { getDashboard, type DashboardData } from "@/api/violation";
 import { VIOLATION_TYPE_MAP } from "@/constants/violations";
+import { TYPE_COLORS } from "@/constants/screenTheme";
 import { downloadBlob, parseFilename } from "@/utils/download";
 
 use([LineChart, BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
+
+const router = useRouter();
+const openScreen = () => router.push("/screen");
+const typeColor = (t: string) => TYPE_COLORS[t] || "#2f6bff";
 
 const loading = ref(false);
 const days = ref(7);
@@ -164,14 +208,57 @@ let pollTimer: number | null = null;
 const weekTotal = computed(() =>
   stats.value.trend.reduce((sum, p) => sum + p.count, 0)
 );
+const latest = computed(() => stats.value.latest ?? []);
 
-// KPI 磁贴（纯展示）
-const statCards = computed(() => [
-  { key: "today", label: "今日违规", value: stats.value.today, tone: "danger", icon: "Warning" },
-  { key: "total", label: "累计违规", value: stats.value.total, tone: "brand", icon: "Histogram" },
-  { key: "online", label: "在线摄像头", value: stats.value.online_cameras, tone: "success", icon: "VideoCamera" },
-  { key: "week", label: `近 ${days.value} 天违规`, value: weekTotal.value, tone: "warning", icon: "TrendCharts" },
-]);
+// KPI 磁贴（含环比徽标）
+const statCards = computed(() => {
+  const d = stats.value.deltas;
+  return [
+    {
+      key: "today",
+      label: "今日违规",
+      value: stats.value.today,
+      tone: "danger",
+      icon: "Warning",
+      delta: d
+        ? {
+            up: d.today_delta > 0,
+            text: `较昨日 ${d.today_delta >= 0 ? "+" : ""}${d.today_delta}`,
+          }
+        : undefined,
+    },
+    {
+      key: "total",
+      label: "累计违规",
+      value: stats.value.total,
+      tone: "brand",
+      icon: "Histogram",
+      delta: undefined,
+    },
+    {
+      key: "online",
+      label: "在线摄像头",
+      value: stats.value.online_cameras,
+      tone: "success",
+      icon: "VideoCamera",
+      delta: undefined,
+    },
+    {
+      key: "week",
+      label: `近 ${days.value} 天违规`,
+      value: weekTotal.value,
+      tone: "warning",
+      icon: "TrendCharts",
+      delta:
+        d && d.growth_pct !== null && d.growth_pct !== undefined
+          ? {
+              up: d.growth_pct > 0,
+              text: `环比 ${d.growth_pct >= 0 ? "+" : ""}${d.growth_pct}%`,
+            }
+          : undefined,
+    },
+  ];
+});
 
 // ---------- 图表统一视觉配置 ----------
 const PALETTE = ["#2f6bff", "#22d3ee", "#f59e0b", "#ef4444", "#22c55e", "#8b5cf6"];
@@ -451,6 +538,33 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 500;
 }
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.screen-entry {
+  background: linear-gradient(135deg, #0b1730, #12233f);
+  border: 1px solid rgba(79, 156, 255, 0.4);
+  color: #cfe2ff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+}
+.screen-entry:hover {
+  color: #fff;
+  border-color: #4f9cff;
+  background: linear-gradient(135deg, #12233f, #1b3457);
+}
+.stat-delta {
+  margin-top: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-delta.up {
+  color: var(--danger);
+}
+.stat-delta.down {
+  color: var(--success);
+}
 
 /* ---- KPI 磁贴 ---- */
 .stat-row {
@@ -548,6 +662,54 @@ onBeforeUnmount(() => {
 }
 .chart {
   height: 300px;
+}
+
+/* ---- 最新抓拍 ---- */
+.latest-card {
+  margin-top: 16px;
+}
+.latest-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+.latest-item {
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+.latest-img {
+  display: block;
+  width: 100%;
+  height: 96px;
+}
+.latest-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 9px;
+}
+.latest-type {
+  font-size: 13px;
+  font-weight: 700;
+}
+.latest-cam {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.latest-time {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 1100px) {
+  .latest-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 /* ---- 系统说明 ---- */

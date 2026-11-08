@@ -32,6 +32,55 @@ export interface TrendPoint {
   count: number;
 }
 
+export interface HourPoint {
+  hour: number;
+  count: number;
+}
+
+export interface DashboardDelta {
+  today_prev: number;
+  today_delta: number;
+  week_prev: number;
+  week_delta: number;
+  growth_pct: number | null;
+}
+
+export interface LatestViolation {
+  id: number;
+  camera_id: number;
+  camera_name: string;
+  location: string;
+  violation_type: string;
+  confidence: number;
+  image_url: string;
+  anno_url: string;
+  created_at: string;
+}
+
+export interface CameraStatusItem {
+  id: number;
+  name: string;
+  location: string;
+  status: string;
+  enabled: boolean;
+  recent_count: number;
+}
+
+export interface WarningLatestItem {
+  id: number;
+  camera_name: string;
+  violation_type: string;
+  count: number;
+  is_read: boolean;
+  triggered_at: string;
+}
+
+export interface WarningSummary {
+  unread: number;
+  today: number;
+  latest: WarningLatestItem[];
+}
+
 export interface DashboardData {
   total: number;
   today: number;
@@ -41,6 +90,13 @@ export interface DashboardData {
   ranking: { name: string; count: number }[];
   /** 点位（安装位置）违规排行 */
   location_ranking: { location: string; count: number }[];
+  // ---- 大屏增强字段（后端追加，可能为空，前端需兜底）----
+  deltas?: DashboardDelta;
+  hourly?: HourPoint[];
+  avg_confidence?: number;
+  latest?: LatestViolation[];
+  camera_status?: CameraStatusItem[];
+  warning_summary?: WarningSummary;
 }
 
 export function listViolations(params: QueryParams) {
