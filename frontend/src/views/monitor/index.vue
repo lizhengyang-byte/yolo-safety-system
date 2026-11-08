@@ -1,8 +1,11 @@
 <template>
-  <el-card>
+  <el-card class="monitor-card">
     <template #header>
-      <div class="header">
-        <span>实时监控预览（AI 叠加）</span>
+      <div class="card-head-row">
+        <div class="card-head-title">
+          <span class="ico"><el-icon><VideoCamera /></el-icon></span>
+          实时监控预览（AI 叠加）
+        </div>
         <div class="actions">
           <el-select
             v-model="selectedIds"
@@ -11,7 +14,7 @@
             collapse-tags-tooltip
             placeholder="选择摄像头（最多 4 路）"
             :multiple-limit="4"
-            style="width: 320px"
+            class="cam-select"
             @change="onSelect"
           >
             <el-option
@@ -22,22 +25,19 @@
               :disabled="!c.enabled"
             />
           </el-select>
-          <el-switch
-            v-model="autoRotate"
-            active-text="自动轮播"
-            inactive-text=""
-            style="margin-left: 14px"
-          />
-          <el-button style="margin-left: 14px" @click="toggleFullscreen">全屏</el-button>
+          <el-switch v-model="autoRotate" active-text="自动轮播" inactive-text="" />
+          <el-button @click="toggleFullscreen">
+            <el-icon class="btn-ico"><FullScreen /></el-icon>全屏
+          </el-button>
         </div>
       </div>
     </template>
 
     <el-alert
+      class="monitor-tip"
       title="AI 叠加：检测框由后端 YOLO 实时识别绘制（与临时演示同一套逻辑），无违规时不入库；FLV 地址前缀可通过 frontend/.env 的 VITE_MEDIAMTX_BASE 配置。"
       type="info"
       :closable="false"
-      style="margin-bottom: 12px"
     />
 
     <div ref="gridRef" class="grid" :class="{ 'grid-multi': selected.length > 1 }">
@@ -52,7 +52,7 @@
       <el-empty
         v-if="!selected.length"
         description="请选择摄像头查看实时画面（需 MediaMTX 运行中）"
-        style="grid-column: 1 / -1; padding: 60px 0"
+        class="empty-grid"
       />
     </div>
   </el-card>
@@ -178,28 +178,68 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.header {
+.monitor-card :deep(.el-card__body) {
+  padding: 18px 20px 20px;
+}
+.card-head-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: 8px;
+}
+.card-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.card-head-title .ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--brand-100), #eef4ff);
+  color: var(--brand-500);
+  font-size: 15px;
 }
 .actions {
   display: flex;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cam-select {
+  width: 320px;
+}
+.btn-ico {
+  margin-right: 4px;
+}
+.monitor-tip {
+  margin-bottom: 16px;
+  border-radius: var(--radius);
 }
 .grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 14px;
 }
 .grid-multi {
   grid-template-columns: repeat(2, 1fr);
 }
+.empty-grid {
+  grid-column: 1 / -1;
+  padding: 60px 0;
+}
 @media (max-width: 900px) {
   .grid-multi {
     grid-template-columns: 1fr;
+  }
+  .cam-select {
+    width: 100%;
   }
 }
 </style>

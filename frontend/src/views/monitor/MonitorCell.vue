@@ -3,12 +3,12 @@
     <video ref="videoRef" autoplay muted playsinline></video>
     <canvas ref="canvasRef"></canvas>
     <div class="badge" :class="camera.status === 'online' ? 'on' : 'off'">
-      {{ camera.status === "online" ? "在线" : "离线" }}
+      <span class="dot"></span>{{ camera.status === "online" ? "在线" : "离线" }}
     </div>
     <div class="name">
       {{ camera.name }}<span v-if="camera.location">（{{ camera.location }}）</span>
     </div>
-    <div v-if="focused" class="ai-tag">AI 检测中…</div>
+    <div v-if="focused" class="ai-tag"><span class="ai-dot"></span>AI 检测中</div>
     <div v-if="!flvSupported" class="no-flv">当前浏览器不支持 flv.js，请使用 Chrome / Edge</div>
   </div>
 </template>
@@ -86,15 +86,18 @@ defineExpose({ videoEl, canvasEl, videoReady, camera: props.camera });
 <style scoped>
 .cell {
   position: relative;
-  background: #000;
-  border-radius: 6px;
+  background: radial-gradient(circle at 50% 40%, #101826, #05070c);
+  border-radius: 14px;
   overflow: hidden;
   aspect-ratio: 16 / 9;
-  border: 2px solid transparent;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.55), var(--shadow-sm);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .cell.focused {
-  border-color: #409eff;
-  box-shadow: 0 0 0 1px #409eff;
+  border-color: var(--brand-400);
+  box-shadow: 0 0 0 2px rgba(79, 156, 255, 0.35), 0 12px 30px rgba(47, 107, 255, 0.28),
+    inset 0 0 40px rgba(0, 0, 0, 0.45);
 }
 video,
 canvas {
@@ -106,46 +109,81 @@ canvas {
 }
 .badge {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 2px 10px;
-  border-radius: 10px;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px 3px 9px;
+  border-radius: 999px;
   font-size: 12px;
+  font-weight: 500;
   color: #fff;
   z-index: 2;
+  backdrop-filter: blur(6px);
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.16);
 }
-.badge.on {
-  background: #67c23a;
+.badge .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
 }
-.badge.off {
-  background: #909399;
+.badge.on .dot {
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+.badge.off .dot {
+  background: #94a3b8;
 }
 .name {
   position: absolute;
-  left: 8px;
-  bottom: 6px;
-  padding: 2px 10px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.55);
+  left: 10px;
+  bottom: 9px;
+  padding: 4px 12px;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: #fff;
-  font-size: 13px;
+  font-size: 12.5px;
   z-index: 2;
-  max-width: 80%;
+  max-width: 82%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .ai-tag {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  padding: 2px 10px;
-  border-radius: 4px;
-  background: rgba(64, 158, 255, 0.85);
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(47, 107, 255, 0.92), rgba(79, 156, 255, 0.92));
   color: #fff;
   font-size: 12px;
+  font-weight: 500;
   z-index: 2;
-  animation: pulse 1.6s infinite;
+  box-shadow: 0 6px 16px rgba(47, 107, 255, 0.4);
+}
+.ai-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: blink 1.4s infinite;
+}
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
 }
 .no-flv {
   position: absolute;
@@ -153,17 +191,8 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #f56c6c;
+  color: #f87171;
   font-size: 14px;
-  background: #1f1f1f;
-}
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
+  background: rgba(10, 15, 25, 0.9);
 }
 </style>

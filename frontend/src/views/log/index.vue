@@ -1,8 +1,11 @@
 <template>
   <el-card>
     <template #header>
-      <div class="header">
-        <span>安全日志管理</span>
+      <div class="card-head-row">
+        <div class="card-head-title">
+          <span class="ico"><el-icon><Document /></el-icon></span>
+          安全日志管理
+        </div>
         <div class="actions">
           <el-select
             v-model="query.violation_type"
@@ -39,7 +42,7 @@
             style="margin-right: 10px"
           />
           <el-button type="primary" :loading="exporting" @click="exportExcel">
-            导出 Excel（含违规图片）
+            <el-icon class="btn-ico"><Download /></el-icon>导出 Excel（含违规图片）
           </el-button>
         </div>
       </div>
@@ -244,17 +247,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 .actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 10px;
 }
 </style>

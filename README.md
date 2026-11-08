@@ -25,6 +25,50 @@
 - **临时演示模式**：直接调用笔记本摄像头实时识别 + 违规抓拍，无需接监控设备，适合现场演示（灵敏度调节 / 只看违规 / 画质 / 镜像 / 全屏 / 演示统计 / 抓拍时间线 / 环境自检）
 - **视频文件检测脚本**：对本地视频文件做 PPE 检测并导出标注视频（CPU / GPU）
 
+## 功能介绍与界面预览
+
+> 以下截图均取自系统真实运行环境（深空科技蓝主题，Vue3 + Element Plus + ECharts 重新设计的视觉体系）。后台默认账号 `admin / admin123`。
+
+### 1. 登录认证
+JWT 登录鉴权，登录态失效自动跳转登录页；记住密码、玻璃拟态渐变登录界面。
+
+![登录页](doc/images/screenshots/login.png)
+
+### 2. 数据看板
+聚合展示今日 / 累计违规、在线摄像头、近 N 天违规量；支持 7/30/90 天趋势切换，含违规趋势折线、违规类型分布环形图、摄像头违规排行与点位违规排行；15 秒自动刷新，新增违规顶栏弹窗提醒，并可一键导出周报 / 月报 PDF。
+
+![数据看板](doc/images/screenshots/dashboard.png)
+
+### 3. 实时监控（AI 检测框叠加）
+选择最多 4 路摄像头同屏预览（2×2，支持自动轮播 / 全屏），画面经后端 YOLO 实时识别并叠加检测框（红=违规、绿=合规、蓝=其他目标），无违规不入库。
+
+![实时监控](doc/images/screenshots/monitor.png)
+
+### 4. 临时演示
+无需接入监控设备，直接调用笔记本摄像头或本地视频文件做实时识别；可调灵敏度、只看违规、镜像、画质、全屏，带模型加载提示、延迟 / 帧率、演示统计与抓拍时间线，现场演示零门槛。
+
+![临时演示](doc/images/screenshots/demo.png)
+
+### 5. 摄像头管理
+维护摄像头名称、安装点位、RTSP 地址，支持 **RTSP 连通性测试**（8 秒兜底）与在线状态自动刷新；启用后推理服务自动接入该路拉流。
+
+![摄像头管理](doc/images/screenshots/camera.png)
+
+### 6. 违规记录
+按类型 / 摄像头 / 日期筛选违规记录，列表内嵌**标注证据图**缩略图；点击任意行打开详情抽屉，可在原图与标注图间切换，并查看该帧全部检测目标（类别 / 置信度 / 区域坐标）。
+
+![违规记录](doc/images/screenshots/violation.png)
+
+### 7. 预警中心
+自定义预警规则（摄像头 / 违规类型 / 时间窗口 / 次数阈值，留空 = 全部），违规频发自动生成预警事件并在顶栏铃铛实时提醒（10 分钟冷却防刷屏）；支持未读筛选与批量标记已读。
+
+![预警中心](doc/images/screenshots/warning.png)
+
+### 8. 安全日志与导出
+违规记录自动沉淀为安全台账，支持按类型 / 摄像头 / 时间段筛选，**一键导出内嵌违规图片缩略图的中文 Excel**；详情抽屉可追溯每条违规的原始帧与 AI 标注证据。
+
+![安全日志](doc/images/screenshots/log.png)
+
 ## Quick Start（5 分钟跑起来）
 
 两种方式任选其一：**本地开发**（默认 SQLite，零 MySQL，最贴近日常开发）或 **Docker 部署**。
@@ -109,6 +153,7 @@ yolo-safety-system/
 │   │   ├── views/           # Login / Dashboard / monitor / demo / camera / violation / warning / log
 │   │   ├── layout/          # MainLayout（侧边菜单 + 预警铃铛）
 │   │   ├── constants/violations.ts  # 共享常量（违规中文名 / 配色，勿重复定义）
+│   │   ├── styles/          # 设计系统（颜色/间距/圆角/阴影 token + Element Plus 皮肤覆写）
 │   │   ├── utils/           # request.ts（token 拦截器）/ draw.ts（canvas 叠加）/ download.ts
 │   │   └── router/          # 路由懒加载 + 登录守卫
 │   ├── Dockerfile / nginx.conf
@@ -118,6 +163,7 @@ yolo-safety-system/
 ├── Safety-Detection-export.py      # 原始脚本：视频导出（CPU）
 ├── Safety-Detection-export-gpu.py  # 原始脚本：视频导出（GPU）
 ├── doc/                     # 文档系列（博客教学 + 架构参考 + API 参考）
+│   └── images/screenshots/  # README 界面截图（登录/看板/监控/演示/摄像头/违规/预警/日志）
 ├── docker-compose.yml
 ├── start-local.bat          # 本地一键启动
 └── ppe.pt                   # 模型权重（根目录副本）

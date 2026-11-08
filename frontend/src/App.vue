@@ -5,16 +5,8 @@
 <script setup lang="ts"></script>
 
 <style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-html,
-body,
+/* 基础样式已迁移至 src/styles（设计系统），此处保持根容器满高 */
 #app {
   height: 100%;
-  font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei",
-    Arial, sans-serif;
 }
 </style>

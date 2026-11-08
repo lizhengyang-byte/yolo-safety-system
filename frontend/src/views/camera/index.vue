@@ -1,9 +1,15 @@
 <template>
   <el-card>
     <template #header>
-      <div class="header">
-        <span>摄像头设备管理（状态每 10 秒自动刷新）</span>
-        <el-button type="primary" @click="openCreate">新增摄像头</el-button>
+      <div class="card-head-row">
+        <div class="card-head-title">
+          <span class="ico"><el-icon><Monitor /></el-icon></span>
+          摄像头设备管理
+          <small class="head-hint">状态每 10 秒自动刷新</small>
+        </div>
+        <el-button type="primary" @click="openCreate">
+          <el-icon class="btn-ico"><Plus /></el-icon>新增摄像头
+        </el-button>
       </div>
     </template>
 
@@ -56,7 +62,8 @@
             </el-button>
           </div>
           <div v-if="testResult" class="test-result" :class="testResult.ok ? 'ok' : 'fail'">
-            {{ testResult.ok ? "✅" : "❌" }} {{ testResult.message }}
+            <el-icon><CircleCheck v-if="testResult.ok" /><CircleClose v-else /></el-icon>
+            <span>{{ testResult.message }}</span>
           </div>
         </el-form-item>
         <el-form-item label="是否启用">
@@ -180,17 +187,15 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 .rtsp-row {
   display: flex;
   gap: 8px;
   width: 100%;
 }
 .test-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 6px;
   font-size: 13px;
   line-height: 1.4;

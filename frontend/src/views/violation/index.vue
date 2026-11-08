@@ -1,14 +1,20 @@
 <template>
   <el-card>
     <template #header>
-      <div class="header">
-        <span>违规抓拍记录（点击行查看详情）</span>
-        <el-button type="primary" @click="load">刷新</el-button>
+      <div class="card-head-row">
+        <div class="card-head-title">
+          <span class="ico"><el-icon><Warning /></el-icon></span>
+          违规抓拍记录
+          <small class="head-hint">点击行查看详情</small>
+        </div>
+        <el-button type="primary" @click="load">
+          <el-icon class="btn-ico"><Refresh /></el-icon>刷新
+        </el-button>
       </div>
     </template>
 
     <!-- 筛选 -->
-    <el-form inline>
+    <el-form inline class="filter-bar">
       <el-form-item label="违规类型">
         <el-select v-model="query.violation_type" clearable placeholder="全部" style="width: 160px">
           <el-option
@@ -217,9 +223,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.filter-bar :deep(.el-form-item:last-child) {
+  margin-bottom: 14px;
 }
 </style>

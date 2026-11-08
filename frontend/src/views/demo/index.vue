@@ -1,14 +1,17 @@
 <template>
   <div>
-    <el-card>
+    <el-card class="demo-card">
       <template #header>
-        <div class="header">
-          <span>临时演示（笔记本摄像头 / 本地视频）</span>
+        <div class="card-head-row">
+          <div class="card-head-title">
+            <span class="ico"><el-icon><Camera /></el-icon></span>
+            临时演示（笔记本摄像头 / 本地视频）
+          </div>
           <div class="actions">
             <el-select
               v-model="deviceId"
               placeholder="选择摄像头"
-              style="width: 200px; margin-right: 12px"
+              class="device-select"
               @change="onDeviceChange"
             >
               <el-option
@@ -18,11 +21,21 @@
                 :value="d.deviceId"
               />
             </el-select>
-            <el-button v-if="!running" type="primary" @click="start">开始演示（摄像头）</el-button>
-            <el-button v-if="!running" @click="videoInputRef?.click()">本地视频检测</el-button>
-            <el-button v-if="!running" @click="selfCheck">环境自检</el-button>
-            <el-button v-else type="danger" @click="stop">停止演示</el-button>
-            <el-button v-if="running" @click="toggleFullscreen">全屏演示</el-button>
+            <el-button v-if="!running" type="primary" @click="start">
+              <el-icon class="btn-ico"><VideoPlay /></el-icon>开始演示（摄像头）
+            </el-button>
+            <el-button v-if="!running" @click="videoInputRef?.click()">
+              <el-icon class="btn-ico"><VideoCamera /></el-icon>本地视频检测
+            </el-button>
+            <el-button v-if="!running" @click="selfCheck">
+              <el-icon class="btn-ico"><CircleCheck /></el-icon>环境自检
+            </el-button>
+            <el-button v-else type="danger" @click="stop">
+              <el-icon class="btn-ico"><SwitchButton /></el-icon>停止演示
+            </el-button>
+            <el-button v-if="running" @click="toggleFullscreen">
+              <el-icon class="btn-ico"><FullScreen /></el-icon>全屏演示
+            </el-button>
             <input
               ref="videoInputRef"
               type="file"
@@ -35,9 +48,12 @@
       </template>
 
       <!-- 首次使用引导 -->
-      <el-collapse v-if="!running && showGuide" style="margin-bottom: 16px">
-        <el-collapse-item title="📖 演示使用指引（3 步）" name="guide">
-          <el-steps :active="3" simple style="margin-bottom: 8px">
+      <el-collapse v-if="!running && showGuide" class="guide-collapse">
+        <el-collapse-item name="guide">
+          <template #title>
+            <span class="guide-title"><el-icon><Reading /></el-icon>演示使用指引（3 步）</span>
+          </template>
+          <el-steps :active="3" simple class="guide-steps">
             <el-step title="授权摄像头" description="点「开始演示」，浏览器会请求摄像头权限，选择允许" />
             <el-step title="实时识别" description="画面自动叠加检测框：红=违规、绿=合规穿戴、蓝=其他目标" />
             <el-step title="违规留痕" description="出现违规自动抓拍标注图入库，可在「违规记录」「安全日志」查看" />
@@ -49,7 +65,7 @@
       <div v-if="running" class="controls">
         <div class="ctrl">
           <span class="label">AI 灵敏度（置信度阈值）</span>
-          <el-slider v-model="confSlider" :min="0.1" :max="0.9" :step="0.05" style="width: 180px" />
+          <el-slider v-model="confSlider" :min="0.1" :max="0.9" :step="0.05" class="slider" />
         </div>
         <div class="ctrl">
           <el-switch v-model="onlyViolations" active-text="只看违规" />
@@ -59,7 +75,7 @@
         </div>
         <div class="ctrl">
           <span class="label">画质</span>
-          <el-select v-model="quality" style="width: 110px">
+          <el-select v-model="quality" class="quality-select">
             <el-option label="自动" value="auto" />
             <el-option label="720p" value="720" />
             <el-option label="480p" value="480" />
@@ -69,16 +85,15 @@
       </div>
 
       <div ref="stageRef" class="stage" v-show="running">
-        <video
-          ref="videoRef"
-          autoplay
-          muted
-          playsinline
-          :class="{ mirrored }"
-        ></video>
+        <video ref="videoRef" autoplay muted playsinline :class="{ mirrored }"></video>
         <canvas ref="canvasRef"></canvas>
-        <div v-if="violations.length" class="warn-tag">⚠️ 检测到违规：{{ violationText }}</div>
-        <div v-else-if="detectCount > 0" class="ok-tag">检测中... 最近帧无违规</div>
+        <div v-if="violations.length" class="warn-tag">
+          <el-icon><WarningFilled /></el-icon>
+          <span>检测到违规：{{ violationText }}</span>
+        </div>
+        <div v-else-if="detectCount > 0" class="ok-tag">
+          <span class="ok-dot"></span>检测中... 最近帧无违规
+        </div>
         <div v-if="sourceMode === 'video'" class="src-tag">本地视频</div>
         <div v-if="running && detectCount > 0" class="fps-tag">
           延迟 {{ latency.toFixed(0) }}ms · {{ (1000 / latency).toFixed(1) }} 帧/s
@@ -96,41 +111,41 @@
 
       <!-- 演示统计 -->
       <div v-if="running" class="stats">
-        <el-card class="stat-item" shadow="never">
-          <div class="num">{{ detectCount }}</div>
+        <div class="stat-item">
+          <div class="num tnum">{{ detectCount }}</div>
           <div class="label">检测帧数</div>
-        </el-card>
-        <el-card class="stat-item" shadow="never">
-          <div class="num warn">{{ violationCount }}</div>
+        </div>
+        <div class="stat-item warn">
+          <div class="num tnum">{{ violationCount }}</div>
           <div class="label">违规次数</div>
-        </el-card>
-        <el-card
-          v-for="t in typeCounts"
-          :key="t.type"
-          class="stat-item"
-          shadow="never"
-        >
-          <div class="num">{{ t.count }}</div>
+        </div>
+        <div v-for="t in typeCounts" :key="t.type" class="stat-item">
+          <div class="num tnum">{{ t.count }}</div>
           <div class="label">{{ t.label }}</div>
-        </el-card>
-        <el-card class="stat-item" shadow="never">
-          <div class="num blue">{{ (1000 / latency).toFixed(1) }}</div>
+        </div>
+        <div class="stat-item blue">
+          <div class="num tnum">{{ (1000 / latency).toFixed(1) }}</div>
           <div class="label">帧率（帧/s）</div>
-        </el-card>
+        </div>
       </div>
 
       <el-alert
         v-if="running"
+        class="demo-tip"
         type="info"
         :closable="false"
-        style="margin-top: 16px"
         title="演示模式：前端取帧 -> 后端 YOLO 检测 -> 违规自动抓拍标注图入库，流程与正式链路一致。"
       />
     </el-card>
 
     <!-- 本次演示违规时间线 -->
-    <el-card v-if="snapshots.length" style="margin-top: 16px">
-      <template #header>本次演示抓拍留痕（已入库）</template>
+    <el-card v-if="snapshots.length" class="timeline-card">
+      <template #header>
+        <div class="card-head-title">
+          <span class="ico"><el-icon><Picture /></el-icon></span>
+          本次演示抓拍留痕（已入库）
+        </div>
+      </template>
       <div class="timeline">
         <el-image
           v-for="(s, i) in snapshots"
@@ -494,46 +509,107 @@ onUnmounted(stop);
 </script>
 
 <style scoped>
-.header {
+.demo-card :deep(.el-card__body) {
+  padding: 18px 20px 20px;
+}
+.card-head-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: 8px;
+}
+.card-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.card-head-title .ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--brand-100), #eef4ff);
+  color: var(--brand-500);
+  font-size: 15px;
 }
 .actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
+.device-select {
+  width: 200px;
+}
+.btn-ico {
+  margin-right: 5px;
+}
+
+/* 引导 */
+.guide-collapse {
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 0 16px;
+}
+.guide-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.guide-steps {
+  padding: 8px 0 12px;
+}
+
+/* 参数栏 */
 .controls {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 20px;
-  padding: 12px 16px;
-  background: #f8f9fb;
-  border-radius: 6px;
-  margin-bottom: 12px;
+  gap: 22px;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, #f8fafd, #f2f6fc);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 14px;
 }
 .ctrl {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 .ctrl .label {
   font-size: 13px;
-  color: #666;
+  color: var(--text-2);
   white-space: nowrap;
 }
+.slider {
+  width: 180px;
+}
+.quality-select {
+  width: 110px;
+}
+
+/* 舞台 */
 .stage {
   position: relative;
   width: 100%;
-  max-width: 720px;
+  max-width: 760px;
   aspect-ratio: 4 / 3;
-  background: #000;
+  background: radial-gradient(circle at 50% 40%, #101826, #05070c);
   margin: 0 auto;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: inset 0 0 46px rgba(0, 0, 0, 0.6), var(--shadow-md);
 }
 video,
 canvas {
@@ -553,29 +629,47 @@ video.mirrored {
   position: absolute;
   top: 12px;
   left: 12px;
-  padding: 6px 14px;
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 15px;
+  border-radius: 999px;
   color: #fff;
-  font-weight: bold;
+  font-weight: 600;
+  font-size: 13px;
   z-index: 2;
+  backdrop-filter: blur(6px);
 }
 .warn-tag {
-  background: #f56c6c;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(249, 115, 22, 0.95));
+  box-shadow: 0 8px 22px rgba(239, 68, 68, 0.4);
 }
 .ok-tag {
-  background: #909399;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-weight: 500;
+}
+.ok-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
 }
 .src-tag {
   right: 12px;
   left: auto;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-weight: 500;
 }
 .fps-tag {
   right: 12px;
   left: auto;
-  top: 48px;
-  background: rgba(0, 0, 0, 0.55);
-  font-weight: normal;
+  top: 54px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-weight: 400;
   font-size: 12px;
 }
 .loading-overlay {
@@ -585,20 +679,21 @@ video.mirrored {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(5, 8, 16, 0.78);
+  backdrop-filter: blur(3px);
   z-index: 3;
 }
 .spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid rgba(255, 255, 255, 0.25);
-  border-top-color: #409eff;
+  width: 52px;
+  height: 52px;
+  border: 4px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--brand-400);
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
 .loading-text {
-  margin-top: 16px;
-  color: #fff;
+  margin-top: 18px;
+  color: #dbe7ff;
   font-size: 15px;
 }
 @keyframes spin {
@@ -606,36 +701,54 @@ video.mirrored {
     transform: rotate(360deg);
   }
 }
+
+/* 统计磁贴 */
 .stats {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 12px;
+  margin-top: 16px;
 }
 .stat-item {
   flex: 1;
-  min-width: 90px;
+  min-width: 96px;
   text-align: center;
-  padding: 4px 0;
+  padding: 14px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
-.stat-item :deep(.el-card__body) {
-  padding: 10px 0;
+.stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 .num {
   font-size: 26px;
-  font-weight: bold;
-  color: #303133;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: 1.1;
 }
-.num.warn {
-  color: #f56c6c;
+.stat-item.warn .num {
+  color: var(--danger);
 }
-.num.blue {
-  color: #409eff;
+.stat-item.blue .num {
+  color: var(--brand-500);
 }
 .label {
   font-size: 12px;
-  color: #909399;
-  margin-top: 2px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+.demo-tip {
+  margin-top: 16px;
+  border-radius: var(--radius);
+}
+
+/* 时间线 */
+.timeline-card {
+  margin-top: 16px;
 }
 .timeline {
   display: flex;
@@ -643,10 +756,17 @@ video.mirrored {
   gap: 12px;
 }
 .thumb {
-  width: 150px;
-  height: 94px;
-  border-radius: 6px;
+  width: 152px;
+  height: 96px;
+  border-radius: 10px;
   cursor: pointer;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.thumb:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: var(--shadow-md);
 }
 .thumb-placeholder {
   width: 100%;
@@ -655,7 +775,7 @@ video.mirrored {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  color: #909399;
-  background: #f5f7fa;
+  color: var(--text-3);
+  background: var(--surface-muted);
 }
 </style>

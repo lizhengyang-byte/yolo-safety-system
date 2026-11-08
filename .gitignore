@@ -16,6 +16,10 @@ backend/images/
 *.jpeg
 *.png
 
+# 文档截图例外：README 展示用截图允许入库
+!doc/images/screenshots/
+!doc/images/screenshots/*.png
+
 # 测试视频（体积大，不入库）
 videos/
 

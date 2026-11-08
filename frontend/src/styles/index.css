@@ -1,0 +1,157 @@
+/* ============================================================
+ * 全局基础样式 + 通用视觉工具类（仅视觉层）
+ * ============================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--text-1);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+::selection {
+  background: rgba(47, 107, 255, 0.18);
+  color: var(--brand-700);
+}
+
+/* ---------- 滚动条 ---------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cdd7e6;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #aab8cd;
+  background-clip: content-box;
+}
+
+/* ---------- 键盘可访问焦点 ---------- */
+:focus-visible {
+  outline: 2px solid rgba(47, 107, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* ---------- 页面切换过渡 ---------- */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* 侧栏折叠时文字淡入淡出 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* ---------- 通用工具类 ---------- */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* 按钮内图标间距 */
+.btn-ico {
+  margin-right: 5px;
+}
+
+/* 卡片标题旁的小提示文字 */
+.head-hint {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+/* 筛选工具栏（浅色软面板） */
+.filter-bar {
+  background: linear-gradient(180deg, #f8fafd 0%, #f3f7fd 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px 2px;
+  margin-bottom: 16px;
+}
+.filter-bar .el-form-item {
+  margin-bottom: 14px;
+}
+
+/* 卡片头部内的操作区排版 */
+.card-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.card-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.card-head-title .ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--brand-100), #eef4ff);
+  color: var(--brand-500);
+  font-size: 15px;
+}
+
+/* 侧栏折叠态菜单铺满侧栏宽度（覆盖 EP 默认 64px） */
+.side-menu.el-menu--collapse {
+  width: 100% !important;
+}
+
+/* 进入动画（可复用） */
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise-in {
+  animation: riseIn 0.45s var(--ease-out) both;
+}

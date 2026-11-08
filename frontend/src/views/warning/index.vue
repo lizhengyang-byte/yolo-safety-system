@@ -3,17 +3,20 @@
     <!-- 预警规则管理 -->
     <el-card>
       <template #header>
-        <div class="header">
-          <span>
+        <div class="card-head-row">
+          <div class="card-head-title">
+            <span class="ico"><el-icon><Bell /></el-icon></span>
             预警规则
             <el-tooltip
               content="规则生效后，某摄像头（或全部）在时间窗口内违规次数达到阈值，即自动生成预警事件并在顶栏铃铛提醒"
               placement="top"
             >
-              <el-icon style="vertical-align: middle; margin-left: 4px"><QuestionFilled /></el-icon>
+              <el-icon class="hint-ico"><QuestionFilled /></el-icon>
             </el-tooltip>
-          </span>
-          <el-button type="primary" @click="openCreate">新增规则</el-button>
+          </div>
+          <el-button type="primary" @click="openCreate">
+            <el-icon class="btn-ico"><Plus /></el-icon>新增规则
+          </el-button>
         </div>
       </template>
 
@@ -92,17 +95,22 @@
     <!-- 预警事件 -->
     <el-card style="margin-top: 16px">
       <template #header>
-        <div class="header">
-          <span>预警事件</span>
-          <div>
+        <div class="card-head-row">
+          <div class="card-head-title">
+            <span class="ico"><el-icon><BellFilled /></el-icon></span>
+            预警事件
+          </div>
+          <div class="event-actions">
             <el-radio-group v-model="unreadOnly" @change="loadEvents">
               <el-radio-button :label="false">全部</el-radio-button>
               <el-radio-button :label="true">仅未读</el-radio-button>
             </el-radio-group>
-            <el-button style="margin-left: 12px" @click="markSelectedRead" :disabled="!selectedIds.length">
-              标记已读
+            <el-button :disabled="!selectedIds.length" @click="markSelectedRead">
+              <el-icon class="btn-ico"><Check /></el-icon>标记已读
             </el-button>
-            <el-button @click="markAllReadFn">全部已读</el-button>
+            <el-button @click="markAllReadFn">
+              <el-icon class="btn-ico"><Select /></el-icon>全部已读
+            </el-button>
           </div>
         </div>
       </template>
@@ -310,12 +318,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.header {
+.hint-ico {
+  color: var(--text-3);
+  cursor: help;
+}
+.event-actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
-  gap: 8px;
 }
 .cond-row {
   display: flex;

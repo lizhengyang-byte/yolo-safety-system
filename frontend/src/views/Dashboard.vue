@@ -1,9 +1,9 @@
 <template>
-  <div v-loading="loading">
+  <div v-loading="loading" class="dashboard">
     <!-- 工具栏：时间范围切换 + PDF 报告导出 -->
-    <el-card class="toolbar">
+    <el-card class="toolbar-card">
       <div class="toolbar-inner">
-        <div>
+        <div class="range-box">
           <span class="toolbar-label">统计范围</span>
           <el-radio-group v-model="days" @change="onDaysChange">
             <el-radio-button :label="7">近 7 天</el-radio-button>
@@ -26,67 +26,92 @@
     </el-card>
 
     <!-- 关键指标 -->
-    <el-row :gutter="16" style="margin-top: 16px">
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <div class="stat-num warn">{{ stats.today }}</div>
-          <div class="stat-label">今日违规</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <div class="stat-num">{{ stats.total }}</div>
-          <div class="stat-label">累计违规</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <div class="stat-num green">{{ stats.online_cameras }}</div>
-          <div class="stat-label">在线摄像头</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <div class="stat-num blue">{{ weekTotal }}</div>
-          <div class="stat-label">近 {{ days }} 天违规</div>
-        </el-card>
+    <el-row :gutter="16" class="stat-row">
+      <el-col v-for="c in statCards" :key="c.key" :xs="12" :sm="12" :md="6">
+        <div class="stat-card" :class="'tone-' + c.tone">
+          <div class="stat-glow"></div>
+          <div class="stat-ico">
+            <el-icon><component :is="c.icon" /></el-icon>
+          </div>
+          <div class="stat-body">
+            <div class="stat-num tnum">{{ c.value }}</div>
+            <div class="stat-label">{{ c.label }}</div>
+          </div>
+        </div>
       </el-col>
     </el-row>
 
-    <el-row :gutter="16" style="margin-top: 16px">
-      <el-col :span="14">
-        <el-card>
-          <template #header>违规趋势（近 {{ days }} 天）</template>
+    <!-- 趋势 + 类型分布 -->
+    <el-row :gutter="16" class="chart-row">
+      <el-col :xs="24" :md="14">
+        <el-card class="panel">
+          <template #header>
+            <div class="card-head-title">
+              <span class="ico"><el-icon><TrendCharts /></el-icon></span>
+              违规趋势（近 {{ days }} 天）
+            </div>
+          </template>
           <div ref="trendRef" class="chart"></div>
         </el-card>
       </el-col>
-      <el-col :span="10">
-        <el-card>
-          <template #header>违规类型分布</template>
+      <el-col :xs="24" :md="10">
+        <el-card class="panel">
+          <template #header>
+            <div class="card-head-title">
+              <span class="ico"><el-icon><Odometer /></el-icon></span>
+              违规类型分布
+            </div>
+          </template>
           <div ref="typeRef" class="chart"></div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-row :gutter="16" style="margin-top: 16px">
-      <el-col :span="12">
-        <el-card>
-          <template #header>摄像头违规排行</template>
+    <!-- 排行 -->
+    <el-row :gutter="16" class="chart-row">
+      <el-col :xs="24" :md="12">
+        <el-card class="panel">
+          <template #header>
+            <div class="card-head-title">
+              <span class="ico"><el-icon><Histogram /></el-icon></span>
+              摄像头违规排行
+            </div>
+          </template>
           <div ref="rankRef" class="chart"></div>
         </el-card>
       </el-col>
-      <el-col :span="12">
-        <el-card>
-          <template #header>点位违规排行（跨项目点位统计）</template>
+      <el-col :xs="24" :md="12">
+        <el-card class="panel">
+          <template #header>
+            <div class="card-head-title">
+              <span class="ico"><el-icon><Location /></el-icon></span>
+              点位违规排行（跨项目点位统计）
+            </div>
+          </template>
           <div ref="locRef" class="chart"></div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-card style="margin-top: 16px">
-      <template #header>系统说明</template>
-      <p>本系统基于 YOLO 实现工地安全帽、马甲、口罩的智能识别，自动抓拍违规并生成安全日志。</p>
-      <p>技术栈：FastAPI + MySQL + Vue3 + Element Plus + MediaMTX + YOLOv8</p>
+    <!-- 系统说明 -->
+    <el-card class="system-card">
+      <div class="system-info">
+        <div class="system-mark"><el-icon><Cpu /></el-icon></div>
+        <div class="system-text">
+          <h3>系统说明</h3>
+          <p>
+            本系统基于 YOLO 实现工地安全帽、马甲、口罩的智能识别，自动抓拍违规并生成安全日志。
+          </p>
+          <div class="tech-chips">
+            <span>FastAPI</span>
+            <span>SQLite / MySQL</span>
+            <span>Vue3</span>
+            <span>Element Plus</span>
+            <span>MediaMTX</span>
+            <span>YOLOv8</span>
+          </div>
+        </div>
+      </div>
     </el-card>
   </div>
 </template>
@@ -140,25 +165,87 @@ const weekTotal = computed(() =>
   stats.value.trend.reduce((sum, p) => sum + p.count, 0)
 );
 
+// KPI 磁贴（纯展示）
+const statCards = computed(() => [
+  { key: "today", label: "今日违规", value: stats.value.today, tone: "danger", icon: "Warning" },
+  { key: "total", label: "累计违规", value: stats.value.total, tone: "brand", icon: "Histogram" },
+  { key: "online", label: "在线摄像头", value: stats.value.online_cameras, tone: "success", icon: "VideoCamera" },
+  { key: "week", label: `近 ${days.value} 天违规`, value: weekTotal.value, tone: "warning", icon: "TrendCharts" },
+]);
+
+// ---------- 图表统一视觉配置 ----------
+const PALETTE = ["#2f6bff", "#22d3ee", "#f59e0b", "#ef4444", "#22c55e", "#8b5cf6"];
+const AXIS_LABEL = { color: "#94a3b8", fontSize: 11 };
+const AXIS_LINE = { lineStyle: { color: "#e6ebf2" } };
+const SPLIT_LINE = { lineStyle: { color: "#eef2f8", type: "dashed" as const } };
+const TOOLTIP = {
+  backgroundColor: "rgba(15,23,42,0.92)",
+  borderWidth: 0,
+  padding: [8, 12] as [number, number],
+  textStyle: { color: "#fff", fontSize: 12 },
+  extraCssText: "border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.28);",
+};
+
+function barGradient(from: string, to: string) {
+  return {
+    type: "linear" as const,
+    x: 0,
+    y: 0,
+    x2: 1,
+    y2: 0,
+    colorStops: [
+      { offset: 0, color: from },
+      { offset: 1, color: to },
+    ],
+  };
+}
+
 function renderCharts() {
   if (!trendChart || !typeChart || !rankChart || !locChart) return;
 
   // 违规趋势
   trendChart.setOption({
-    tooltip: { trigger: "axis" },
-    grid: { left: 40, right: 16, top: 24, bottom: 28 },
+    tooltip: { trigger: "axis", ...TOOLTIP },
+    grid: { left: 44, right: 18, top: 24, bottom: 28 },
     xAxis: {
       type: "category",
+      boundaryGap: false,
       data: stats.value.trend.map((p) => p.date.slice(5)),
+      axisLine: AXIS_LINE,
+      axisTick: { show: false },
+      axisLabel: AXIS_LABEL,
     },
-    yAxis: { type: "value", minInterval: 1 },
+    yAxis: {
+      type: "value",
+      minInterval: 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: AXIS_LABEL,
+      splitLine: SPLIT_LINE,
+    },
     series: [
       {
         name: "违规数",
         type: "line",
         smooth: true,
-        areaStyle: { opacity: 0.15 },
-        itemStyle: { color: "#f56c6c" },
+        symbol: "circle",
+        symbolSize: 7,
+        showSymbol: false,
+        lineStyle: { width: 3, color: "#2f6bff" },
+        itemStyle: { color: "#2f6bff", borderColor: "#fff", borderWidth: 2 },
+        areaStyle: {
+          color: {
+            type: "linear",
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "rgba(47,107,255,0.30)" },
+              { offset: 1, color: "rgba(47,107,255,0.01)" },
+            ],
+          },
+        },
         data: stats.value.trend.map((p) => p.count),
       },
     ],
@@ -170,35 +257,56 @@ function renderCharts() {
     value: t.count,
   }));
   typeChart.setOption({
-    tooltip: { trigger: "item", formatter: "{b}: {c} 条 ({d}%)" },
-    legend: { bottom: 0 },
+    color: PALETTE,
+    tooltip: { trigger: "item", formatter: "{b}: {c} 条 ({d}%)", ...TOOLTIP },
+    legend: {
+      bottom: 0,
+      icon: "circle",
+      itemWidth: 9,
+      itemHeight: 9,
+      itemGap: 14,
+      textStyle: { color: "#64748b", fontSize: 11 },
+    },
     series: [
       {
         type: "pie",
-        radius: ["42%", "68%"],
-        center: ["50%", "45%"],
+        radius: ["46%", "70%"],
+        center: ["50%", "44%"],
+        avoidLabelOverlap: true,
+        itemStyle: { borderRadius: 8, borderColor: "#fff", borderWidth: 3 },
+        label: { show: false },
+        labelLine: { show: false },
         data: typeData,
-        itemStyle: { borderRadius: 6, borderColor: "#fff", borderWidth: 2 },
       },
     ],
   });
 
   // 摄像头排行
   rankChart.setOption({
-    tooltip: { trigger: "axis" },
-    grid: { left: 40, right: 40, top: 16, bottom: 24 },
-    xAxis: { type: "value", minInterval: 1 },
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, ...TOOLTIP },
+    grid: { left: 8, right: 36, top: 8, bottom: 8, containLabel: true },
+    xAxis: {
+      type: "value",
+      minInterval: 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: AXIS_LABEL,
+      splitLine: SPLIT_LINE,
+    },
     yAxis: {
       type: "category",
       inverse: true,
       data: stats.value.ranking.map((r) => r.name),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { ...AXIS_LABEL, color: "#64748b" },
     },
     series: [
       {
         name: "违规数",
         type: "bar",
-        barMaxWidth: 22,
-        itemStyle: { color: "#409eff", borderRadius: [0, 4, 4, 0] },
+        barMaxWidth: 16,
+        itemStyle: { borderRadius: [0, 8, 8, 0], color: barGradient("#4f9cff", "#2f6bff") },
         data: stats.value.ranking.map((r) => r.count),
       },
     ],
@@ -206,20 +314,30 @@ function renderCharts() {
 
   // 点位排行（跨项目点位统计）
   locChart.setOption({
-    tooltip: { trigger: "axis" },
-    grid: { left: 40, right: 40, top: 16, bottom: 24 },
-    xAxis: { type: "value", minInterval: 1 },
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, ...TOOLTIP },
+    grid: { left: 8, right: 36, top: 8, bottom: 8, containLabel: true },
+    xAxis: {
+      type: "value",
+      minInterval: 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: AXIS_LABEL,
+      splitLine: SPLIT_LINE,
+    },
     yAxis: {
       type: "category",
       inverse: true,
       data: stats.value.location_ranking.map((r) => r.location),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { ...AXIS_LABEL, color: "#64748b" },
     },
     series: [
       {
         name: "违规数",
         type: "bar",
-        barMaxWidth: 22,
-        itemStyle: { color: "#e6a23c", borderRadius: [0, 4, 4, 0] },
+        barMaxWidth: 16,
+        itemStyle: { borderRadius: [0, 8, 8, 0], color: barGradient("#f59e0b", "#f97316") },
         data: stats.value.location_ranking.map((r) => r.count),
       },
     ],
@@ -309,44 +427,188 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.toolbar {
-  padding: 4px 0;
+.dashboard {
+  display: flex;
+  flex-direction: column;
+}
+.toolbar-card :deep(.el-card__body) {
+  padding: 14px 20px;
 }
 .toolbar-inner {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+}
+.range-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 .toolbar-label {
-  margin-right: 12px;
-  color: #666;
+  color: var(--text-2);
   font-size: 14px;
+  font-weight: 500;
+}
+
+/* ---- KPI 磁贴 ---- */
+.stat-row {
+  margin-top: 16px;
+  row-gap: 16px;
 }
 .stat-card {
-  text-align: center;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: transparent;
+}
+.stat-glow {
+  position: absolute;
+  right: -34px;
+  top: -34px;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: var(--tone-soft);
+  opacity: 0.75;
+  pointer-events: none;
+}
+.stat-ico {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  color: #fff;
+  background: var(--tone-grad);
+  box-shadow: 0 12px 24px -8px var(--tone);
+}
+.stat-body {
+  position: relative;
+  z-index: 1;
 }
 .stat-num {
-  font-size: 40px;
-  font-weight: bold;
-  color: #303133;
-  line-height: 1.2;
-}
-.stat-num.warn {
-  color: #f56c6c;
-}
-.stat-num.green {
-  color: #67c23a;
-}
-.stat-num.blue {
-  color: #409eff;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--text-1);
 }
 .stat-label {
-  color: #666;
-  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 13px;
+  margin-top: 5px;
+}
+.tone-danger {
+  --tone: #ef4444;
+  --tone-soft: #feecec;
+  --tone-grad: linear-gradient(135deg, #ef4444, #f97316);
+}
+.tone-brand {
+  --tone: #2f6bff;
+  --tone-soft: #e9f1ff;
+  --tone-grad: linear-gradient(135deg, #2f6bff, #4f9cff);
+}
+.tone-success {
+  --tone: #22c55e;
+  --tone-soft: #e8f9ef;
+  --tone-grad: linear-gradient(135deg, #22c55e, #10b981);
+}
+.tone-warning {
+  --tone: #f59e0b;
+  --tone-soft: #fef4e5;
+  --tone-grad: linear-gradient(135deg, #f59e0b, #f97316);
+}
+
+/* ---- 图表卡片 ---- */
+.chart-row {
+  margin-top: 16px;
+  row-gap: 16px;
+}
+.panel {
+  height: 100%;
 }
 .chart {
   height: 300px;
+}
+
+/* ---- 系统说明 ---- */
+.system-card {
+  margin-top: 16px;
+}
+.system-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+.system-mark {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  color: var(--brand-500);
+  background: linear-gradient(135deg, var(--brand-100), #eef4ff);
+}
+.system-text h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 6px;
+}
+.system-text p {
+  color: var(--text-2);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.tech-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.tech-chips span {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--brand-600);
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--brand-100);
+}
+
+@media (max-width: 768px) {
+  .chart {
+    height: 260px;
+  }
+  .stat-num {
+    font-size: 26px;
+  }
+  .stat-ico {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    font-size: 20px;
+  }
 }
 </style>

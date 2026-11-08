@@ -5,6 +5,11 @@ import zhCn from "element-plus/es/locale/lang/zh-cn";
 import "element-plus/dist/index.css";
 import * as ElementPlusIconsVue from "@element-plus/icons-vue";
 
+// 全局设计系统样式（仅视觉层）
+import "./styles/variables.css";
+import "./styles/element-overrides.css";
+import "./styles/index.css";
+
 import App from "./App.vue";
 import router from "./router";
 
