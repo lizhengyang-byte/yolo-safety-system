@@ -7,6 +7,7 @@
 一句话：**让 AI 盯着工地，替安全员抓拍每一个不规范穿戴瞬间，把违规留痕变成可管理的数据。**
 
 > ⚠️ **适配说明（本仓库已适配 `ppe.pt` 模型）**
+>
 > - 类别顺序（10 类）：`0 Hardhat, 1 Mask, 2 NO-Hardhat, 3 NO-Mask, 4 NO-Safety Vest, 5 Person, 6 Safety Cone, 7 Safety Vest, 8 machinery, 9 vehicle`
 > - 违规判定为 **direct 模式**：模型直接输出违规类（`NO-*`），出现即判违规，无需 IoU
 > - `inference/` 与 `backend/app/detection/` 均支持 `person_iou` 通用模式（正类装备模型）
@@ -32,50 +33,65 @@
 > 以下截图均取自系统真实运行环境（深空科技蓝主题，Vue3 + Element Plus + ECharts 重新设计的视觉体系）。后台默认账号 `admin / admin123`。
 
 ### 1. 登录认证
+
 JWT 登录鉴权，登录态失效自动跳转登录页；记住密码、玻璃拟态渐变登录界面。
 
 ![登录页](doc/images/screenshots/login.png)
 
 ### 2. 数据看板
+
 聚合展示今日 / 累计违规、在线摄像头、近 N 天违规量；支持 7/30/90 天趋势切换，含违规趋势折线、违规类型分布环形图、摄像头违规排行与点位违规排行；**新违规通过 SSE 实时刷新**（增长即弹窗提醒，60s 轮询兜底），也可一键下载周报 / 月报 PDF 或**直接邮件发送报告**。
 
 ![数据看板](doc/images/screenshots/dashboard.png)
 
 ### 3. 实时监控（AI 检测框叠加）
+
 选择最多 4 路摄像头同屏预览（2×2，支持自动轮播 / 全屏），画面经后端 YOLO 实时识别并叠加检测框（红=违规、绿=合规、蓝=其他目标），无违规不入库。
 
 ![实时监控](doc/images/screenshots/monitor.png)
 
 ### 4. 临时演示
+
 无需接入监控设备，直接调用笔记本摄像头或本地视频文件做实时识别；可调灵敏度、只看违规、镜像、画质、全屏，带模型加载提示、延迟 / 帧率、演示统计与抓拍时间线，现场演示零门槛。
 
 ![临时演示](doc/images/screenshots/demo.png)
 
 ### 5. 摄像头管理
+
 维护摄像头名称、安装点位、RTSP 地址，支持 **RTSP 连通性测试**（8 秒兜底）与在线状态自动刷新；启用后推理服务自动接入该路拉流。
 
 ![摄像头管理](doc/images/screenshots/camera.png)
 
 ### 6. 违规记录
+
 按类型 / 摄像头 / 日期筛选违规记录，列表内嵌**标注证据图**缩略图；点击任意行打开详情抽屉，可在原图与标注图间切换，并查看该帧全部检测目标（类别 / 置信度 / 区域坐标）。
 
 ![违规记录](doc/images/screenshots/violation.png)
 
 ### 7. 预警中心
+
 自定义预警规则（摄像头 / 违规类型 / 时间窗口 / 次数阈值，留空 = 全部），违规频发自动生成预警事件并在顶栏铃铛**实时提醒（SSE，10 分钟冷却防刷屏）**；支持未读筛选与批量标记已读。**「预警配置」页签**可在线设置邮件 SMTP、预警邮件开关、日报/周报定时推送与收件人。
 
 ![预警中心](doc/images/screenshots/warning.png)
 
 ### 8. 邮件告警与报告推送（网页配置）
+
 在「预警中心 → 预警配置」：
+
 - **SMTP 服务器**：服务器 / 端口 / 加密方式（SSL 465、STARTTLS 587）/ 账号 / 授权码 / 发件人 / 收件人，支持「发送测试邮件」验证；
 - **报告推送**：预警邮件开关、日报（时间）、周报（星期几 + 时间）、报告收件人，支持「立即发送报表」；
 - 保存即生效（写入 `system_settings` 表，优先级高于 `.env`）；预警邮件正文含抓拍图附件；每日/每周报告由后端定时任务自动发送。
 
+![1794211405508](image/README/1794211405508.png)
+
 ### 9. 智慧大屏
+
 独立全屏深色大屏（`/screen`，1920×1080 等比缩放，适配 2K/4K/拼接屏）：核心指标、类型分布、违规排行、趋势主图（按天/今日时段）、实时抓拍轮播、最新预警、摄像头在线状态。
 
+![1794211278834](image/README/1794211278834.png)
+
 **启动方式（三选一，均为网页内直接进入，无需先跑脚本）：**
+
 1. 数据看板右上角「进入智慧大屏」下拉 → 选「全屏值班 / 电视墙」即跳转大屏并进入全屏+轮播；也可选总览布局 / 告警布局 / 轮播值班；
 2. 大屏右上角按钮：**全屏**、**值班轮播**（一键启停总览 ↔ 告警切换）、返回；
 3. 需要开机自启/无边框 Kiosk 时，用 `deploy/start-screen.bat`（Chrome/Edge Kiosk 全屏，自动允许告警声音）。
@@ -83,6 +99,7 @@ JWT 登录鉴权，登录态失效自动跳转登录页；记住密码、玻璃�
 支持 URL 参数：`?layout=overview|alerts`、`?rotate=秒`（值班轮播）、`?present=1`（展厅模式，隐藏操作按钮）与告警插播+提示音。
 
 ### 10. 安全日志与导出
+
 违规记录自动沉淀为安全台账，支持按类型 / 摄像头 / 时间段筛选，**一键导出内嵌违规图片缩略图的中文 Excel**；详情抽屉可追溯每条违规的原始帧与 AI 标注证据。
 
 ![安全日志](doc/images/screenshots/log.png)
@@ -130,12 +147,12 @@ docker compose up -d --build
 
 ### Verify It's Working
 
-| 检查项 | 方法 | 预期结果 |
-|---|---|---|
-| 后端 | 打开 `http://localhost:8000/docs` | Swagger 接口文档可访问 |
-| 前端 | 打开 `http://localhost:3000` | 登录页，用 `admin / admin123` 登录 |
-| 演示 | 前端 →「临时演示」→ 授权摄像头 → 开始演示 | 画面实时叠加检测框，违规标红 + 抓拍入库 |
-| 图片 | 违规后访问 `http://localhost:8000/images/xxx.jpg` | 能看到原始帧 / 标注证据图 |
+| 检查项 | 方法                                               | 预期结果                                |
+| ------ | -------------------------------------------------- | --------------------------------------- |
+| 后端   | 打开`http://localhost:8000/docs`                 | Swagger 接口文档可访问                  |
+| 前端   | 打开`http://localhost:3000`                      | 登录页，用`admin / admin123` 登录     |
+| 演示   | 前端 →「临时演示」→ 授权摄像头 → 开始演示       | 画面实时叠加检测框，违规标红 + 抓拍入库 |
+| 图片   | 违规后访问`http://localhost:8000/images/xxx.jpg` | 能看到原始帧 / 标注证据图               |
 
 ## Project Structure
 
@@ -274,13 +291,13 @@ SQLAlchemy 的 `server_default=_func.now()` 在 SQLite 上生成 `CURRENT_TIMEST
 
 > ⚠️ 换模型是最需要谨慎的操作。模型类别渗透到配置文件、标注配色、前端画框、原始脚本，**一处改动五处响应**：
 
-| # | 位置 | 改什么 |
-|---|---|---|
-| 1 | `inference/config.yaml` / `config.local.yaml` | `class_names`（与模型类别顺序一致）、`violation_rule`、`judge_mode` |
-| 2 | `backend/app/config.py` | `VIOLATION_RULE`、`JUDGE_MODE`、`DEMO_MODEL_PATH`、`DEMO_CONF_THRESHOLD` |
-| 3 | `backend/app/detection/annotate.py`（**同步** `inference/annotate.py`） | `NEGATIVE_CLASSES` / `POSITIVE_CLASSES` + `VIOLATION_LABELS` |
-| 4 | `frontend/src/constants/violations.ts` | `VIOLATION_TYPE_MAP`、`NEGATIVE_CLASSES`、`POSITIVE_CLASSES` |
-| 5 | 根目录 `Safety-Detection*.py` | 硬编码 `classNames` 列表 |
+| # | 位置                                                                              | 改什么                                                                           |
+| - | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 1 | `inference/config.yaml` / `config.local.yaml`                                 | `class_names`（与模型类别顺序一致）、`violation_rule`、`judge_mode`        |
+| 2 | `backend/app/config.py`                                                         | `VIOLATION_RULE`、`JUDGE_MODE`、`DEMO_MODEL_PATH`、`DEMO_CONF_THRESHOLD` |
+| 3 | `backend/app/detection/annotate.py`（**同步** `inference/annotate.py`） | `NEGATIVE_CLASSES` / `POSITIVE_CLASSES` + `VIOLATION_LABELS`               |
+| 4 | `frontend/src/constants/violations.ts`                                          | `VIOLATION_TYPE_MAP`、`NEGATIVE_CLASSES`、`POSITIVE_CLASSES`               |
+| 5 | 根目录`Safety-Detection*.py`                                                    | 硬编码`classNames` 列表                                                        |
 
 **验证方法：** `YOLO(path).names` 打印模型实际类别字典，与 `class_names` 配置比对。
 
@@ -297,16 +314,16 @@ SQLAlchemy 的 `server_default=_func.now()` 在 SQLite 上生成 `CURRENT_TIMEST
 
 ### Environment Variables
 
-| 变量 | 控制什么 | 默认值 | 使用环境 |
-|---|---|---|---|
-| `DATABASE_URL` | 数据库连接 | `sqlite:///./yolo_safety.db` | 后端（Docker 覆盖为 MySQL） |
-| `JWT_SECRET` / `JWT_EXPIRE_MINUTES` | 登录令牌 | `yolo-safety-secret...` / 720 | 后端 |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 默认账号 | `admin` / `admin123` | 后端 |
-| `UPLOAD_DIR` | 抓拍图片目录 | `./images` | 后端（Docker 覆盖为 `/data/images`） |
-| `DEMO_MODEL_PATH` / `DEMO_CONF_THRESHOLD` / `DEMO_DEVICE` | 演示模型 | `/app/weights/ppe.pt` / 0.5 / cpu | 后端 |
-| `VITE_MEDIAMTX_BASE` | 监控页 FLV 地址前缀 | `http://localhost:8080` | 前端 `.env` |
-| `CONFIG_PATH` | 推理服务配置文件 | - | 推理服务（本地用 `inference/config.local.yaml`） |
-| `MAIL_ENABLED` / `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_SSL` / `SMTP_STARTTLS` / `MAIL_FROM` / `MAIL_TO` | 预警邮件 SMTP（初始默认值，网页「预警配置」可覆盖） | 空（自动跳过发送） | 后端 `backend/.env`，模板见 `backend/.env.example` |
+| 变量                                                                                                                                                  | 控制什么                                            | 默认值                              | 使用环境                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------- | ----------------------------------------------------- |
+| `DATABASE_URL`                                                                                                                                      | 数据库连接                                          | `sqlite:///./yolo_safety.db`      | 后端（Docker 覆盖为 MySQL）                           |
+| `JWT_SECRET` / `JWT_EXPIRE_MINUTES`                                                                                                               | 登录令牌                                            | `yolo-safety-secret...` / 720     | 后端                                                  |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD`                                                                                                               | 默认账号                                            | `admin` / `admin123`            | 后端                                                  |
+| `UPLOAD_DIR`                                                                                                                                        | 抓拍图片目录                                        | `./images`                        | 后端（Docker 覆盖为`/data/images`）                 |
+| `DEMO_MODEL_PATH` / `DEMO_CONF_THRESHOLD` / `DEMO_DEVICE`                                                                                       | 演示模型                                            | `/app/weights/ppe.pt` / 0.5 / cpu | 后端                                                  |
+| `VITE_MEDIAMTX_BASE`                                                                                                                                | 监控页 FLV 地址前缀                                 | `http://localhost:8080`           | 前端`.env`                                          |
+| `CONFIG_PATH`                                                                                                                                       | 推理服务配置文件                                    | -                                   | 推理服务（本地用`inference/config.local.yaml`）     |
+| `MAIL_ENABLED` / `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_SSL` / `SMTP_STARTTLS` / `MAIL_FROM` / `MAIL_TO` | 预警邮件 SMTP（初始默认值，网页「预警配置」可覆盖） | 空（自动跳过发送）                  | 后端`backend/.env`，模板见 `backend/.env.example` |
 
 ### Configuration Files
 
