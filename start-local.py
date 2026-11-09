@@ -225,6 +225,7 @@ def main() -> int:
     log(f"  后端接口文档  http://localhost:{BACKEND_PORT}/docs", color="cyan")
     log(f"  后台数据看板  http://localhost:{FRONTEND_PORT}/dashboard   (默认账号 admin / admin123)", color="cyan")
     log(f"  智慧大屏      http://localhost:{FRONTEND_PORT}/screen", color="cyan")
+    log("  大屏 Kiosk     deploy/start-screen.bat（全屏值班/电视墙）", color="cyan")
     log(f"  临时演示      http://localhost:{FRONTEND_PORT}/demo", color="cyan")
     log("违规图片      http://localhost:8000/images/xxx.jpg", color="cyan")
 

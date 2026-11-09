@@ -15,14 +15,16 @@
           <el-button class="screen-entry" @click="openScreen">
             <el-icon class="el-icon--left"><DataBoard /></el-icon>进入智慧大屏
           </el-button>
-          <el-dropdown @command="exportReport">
-            <el-button type="primary" :loading="exporting">
-              导出 PDF 报告<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          <el-dropdown @command="onReportCommand">
+            <el-button type="primary" :loading="exporting || emailing">
+              导出 / 发送报告<el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="week">安全周报（近 7 天）</el-dropdown-item>
-                <el-dropdown-item command="month">安全月报（近 30 天）</el-dropdown-item>
+                <el-dropdown-item command="week">下载安全周报（近 7 天）</el-dropdown-item>
+                <el-dropdown-item command="month">下载安全月报（近 30 天）</el-dropdown-item>
+                <el-dropdown-item divided command="email-week">邮件发送安全周报</el-dropdown-item>
+                <el-dropdown-item command="email-month">邮件发送安全月报</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -173,6 +175,8 @@ import { getDashboard, type DashboardData } from "@/api/violation";
 import { VIOLATION_TYPE_MAP } from "@/constants/violations";
 import { TYPE_COLORS } from "@/constants/screenTheme";
 import { downloadBlob, parseFilename } from "@/utils/download";
+import { useRealtime } from "@/composables/useRealtime";
+import { emailReport } from "@/api/settings";
 
 use([LineChart, BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
 
@@ -183,6 +187,7 @@ const typeColor = (t: string) => TYPE_COLORS[t] || "#2f6bff";
 const loading = ref(false);
 const days = ref(7);
 const exporting = ref(false);
+const emailing = ref(false);
 const stats = ref<DashboardData>({
   total: 0,
   today: 0,
@@ -456,6 +461,13 @@ function onDaysChange() {
   load(false);
 }
 
+// 实时推送：新违规到达即刷新（SSE），下方 60s 轮询仅作兜底
+useRealtime({
+  violation: () => {
+    load(true);
+  },
+});
+
 /** 导出 PDF 安全报告（周报/月报，后端 reportlab 生成） */
 async function exportReport(period: "week" | "month") {
   if (exporting.value) return;
@@ -485,6 +497,27 @@ async function exportReport(period: "week" | "month") {
   }
 }
 
+/** 报告下拉命令：下载或邮件发送 */
+function onReportCommand(cmd: string) {
+  if (cmd === "email-week") return sendReportMail("week");
+  if (cmd === "email-month") return sendReportMail("month");
+  if (cmd === "week" || cmd === "month") return exportReport(cmd);
+}
+
+/** 生成报告 PDF 并邮件发送 */
+async function sendReportMail(period: "week" | "month") {
+  if (emailing.value) return;
+  emailing.value = true;
+  try {
+    const res = await emailReport(period);
+    ElMessage.success(res.message || "报告邮件已发送");
+  } catch (e) {
+    ElMessage.error((e as Error).message || "报告邮件发送失败");
+  } finally {
+    emailing.value = false;
+  }
+}
+
 onMounted(async () => {
   trendChart = init(trendRef.value!);
   typeChart = init(typeRef.value!);
@@ -492,8 +525,8 @@ onMounted(async () => {
   locChart = init(locRef.value!);
   window.addEventListener("resize", resizeCharts);
   await load(false);
-  // 每 15 秒自动刷新 + 新增违规提醒
-  pollTimer = window.setInterval(() => load(true), 15000);
+  // 兜底轮询（正常由 SSE 实时触发）；60s 一次，降低后端压力
+  pollTimer = window.setInterval(() => load(true), 60000);
 });
 
 function resizeCharts() {

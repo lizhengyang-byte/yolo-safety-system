@@ -89,9 +89,10 @@ Authorization: Bearer <access_token>
 | 违规 | `POST /api/violations/with-image` | 上报违规（multipart 带图） |
 | 违规 | `GET /api/violations` | 违规分页列表（多条件筛选） |
 | 日志 | `GET /api/logs/stats` | 违规类型统计 |
-| 日志 | `GET /api/logs/dashboard` | 数据看板聚合（7/30/90 天） |
+| 日志 | `GET /api/logs/dashboard` | 数据看板聚合（基础字段 + 大屏增强：环比/小时分布/最新抓拍/摄像头状态/预警摘要） |
 | 日志 | `GET /api/logs/export` | 导出 Excel（内嵌图片）/ CSV 兜底 |
-| 日志 | `GET /api/logs/report` | 导出 PDF 周报/月报 |
+| 日志 | `GET /api/logs/report` | 下载 PDF 周报/月报 |
+| 日志 | `POST /api/logs/report/email` | 生成报告 PDF 并邮件发送（`period=week\|month`） |
 | 演示 | `GET /api/demo/status` | 演示环境自检 |
 | 演示 | `POST /api/demo/detect` | 帧检测 + 违规抓拍入库 |
 | 预警 | `GET /api/warnings/rules` | 预警规则列表 |
@@ -99,9 +100,15 @@ Authorization: Bearer <access_token>
 | 预警 | `PUT /api/warnings/rules/{id}` | 更新规则 |
 | 预警 | `DELETE /api/warnings/rules/{id}` | 删除规则 |
 | 预警 | `GET /api/warnings/events` | 预警事件分页（可筛未读） |
-| 预警 | `GET /api/warnings/unread-count` | 未读事件数（铃铛轮询） |
+| 预警 | `GET /api/warnings/unread-count` | 未读事件数（SSE 实时刷新，60s 轮询兜底） |
 | 预警 | `POST /api/warnings/events/read` | 按 ID 列表标已读 |
 | 预警 | `POST /api/warnings/events/read-all` | 全部标已读 |
+| 预警 | `POST /api/warnings/email/test` | 预警邮件自检（未配置返回提示） |
+| 实时 | `GET /api/realtime/stream` | SSE 实时推送（`violation` / `warning` / `camera_status`） |
+| 配置 | `GET/PUT /api/settings/mail` | 邮件 SMTP 配置读写（密码脱敏） |
+| 配置 | `POST /api/settings/mail/test` | 发送测试邮件 |
+| 配置 | `GET/PUT /api/settings/report` | 报告推送配置（预警邮件/日报/周报/收件人） |
+| 配置 | `POST /api/settings/report/send` | 立即发送报告（`period=daily\|week\|month`） |
 
 ---
 
@@ -509,7 +516,7 @@ curl -X POST http://localhost:8000/api/demo/detect \
 
 **响应：** `{ "count": 3 }`
 
-前端主布局每 10s 轮询，新增时弹窗提醒。
+前端主布局优先通过 SSE（`/api/realtime/stream`）实时刷新，60s 轮询仅作兜底。
 
 ### 标记已读
 
@@ -529,7 +536,48 @@ curl -X POST http://localhost:8000/api/demo/detect \
 ① 10 分钟冷却（同 camera+type 冷却期内不再生成）
 ② 规则匹配（enabled=true，camera_id/type 空=通配）
 ③ 窗口统计（最近 window_minutes 分钟该摄像头该类型违规数 ≥ threshold → 生成事件）
+④ 事件生成后：SSE 推送 warning 事件；若「预警邮件」开启且 SMTP 已配置，后台线程发送邮件（正文 + 该摄像头/类型最近一条抓拍图附件）
 ```
+
+---
+
+## 实时推送（SSE）
+
+**Endpoint:** `GET /api/realtime/stream?token=<JWT>`
+
+EventSource 无法设置 Authorization 头，故 token 走 query。响应为 `text/event-stream`，每 15s 发一次注释心跳（`: ping`）。
+
+| event | data 字段 |
+|---|---|
+| `violation` | `id / camera_id / camera_name / location / violation_type / confidence / image_url / anno_url / created_at` |
+| `warning` | `id / camera_id / camera_name / location / violation_type / type_label / count / triggered_at / is_read / confidence` |
+| `camera_status` | `id / name / location / status` |
+
+前端 `composables/useRealtime.ts` 全局共享一条连接，断线自动重连；看板/顶栏/大屏均改为事件驱动（60s 轮询兜底）。
+
+---
+
+## 系统配置（邮件与报告）
+
+配置持久化在 `system_settings` 表（网页值优先于 `.env` 默认值），保存即生效。
+
+### 邮件 SMTP
+
+- `GET /api/settings/mail` → 返回配置（`password` 脱敏为 `******`，另含 `has_password`）。
+- `PUT /api/settings/mail` → 字段：`enabled / host / port / user / password / ssl / starttls / from / to`（`password` 留空或为掩码表示不修改）。
+- `POST /api/settings/mail/test` → `{ "ok": true, "message": "..." }`。
+
+### 报告推送
+
+- `GET /api/settings/report` → `warning_email_enabled / daily_enabled / daily_time / weekly_enabled / weekly_day / weekly_time / report_to / last_daily_sent / last_weekly_sent / effective_to`。
+- `PUT /api/settings/report` → 同上可写字段。
+- `POST /api/settings/report/send?period=daily|week|month` → 立即生成并发送。
+
+### 报告邮件（看板导出）
+
+`POST /api/logs/report/email?period=week|month` → 生成 PDF 并作为附件发送；未配置 SMTP/收件人返回 400。
+
+> 每日/每周报告由后端 `services/report_scheduler.py` 后台线程每 30 秒检查配置时间自动发送（当天已发不重复）。
 
 ---
 

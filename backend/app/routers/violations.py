@@ -8,11 +8,33 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
-from ..models import Violation
+from ..models import Camera, Violation
 from ..schemas import ViolationCreate, ViolationOut, ViolationPage
+from ..services.events import bus
 from ..services.warnings import trigger_warning_check
 
 router = APIRouter()
+
+
+def _publish_violation(db: Session, v: Violation) -> None:
+    """实时推送新违规（SSE）。"""
+    cam = db.query(Camera).filter(Camera.id == v.camera_id).first()
+    bus.publish(
+        "violation",
+        {
+            "id": v.id,
+            "camera_id": v.camera_id,
+            "camera_name": v.camera_name or "未知",
+            "location": (cam.location or "") if cam else "",
+            "violation_type": v.violation_type,
+            "confidence": round(float(v.confidence or 0), 3),
+            "image_url": v.image_url or "",
+            "anno_url": v.anno_url or "",
+            "created_at": v.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            if v.created_at
+            else "",
+        },
+    )
 
 
 @router.post("", response_model=ViolationOut, status_code=201)
@@ -31,6 +53,7 @@ def report_violation(body: ViolationCreate, db: Session = Depends(get_db)):
     db.refresh(v)
     # 预警规则检查（commit 后统计，需包含刚入库记录）
     trigger_warning_check(db, body.camera_id, body.camera_name, body.violation_type)
+    _publish_violation(db, v)
     return v
 
 
@@ -95,6 +118,7 @@ async def report_violation_with_image(
     db.refresh(v)
     # 预警规则检查（commit 后统计，需包含刚入库记录）
     trigger_warning_check(db, camera_id, camera_name, violation_type)
+    _publish_violation(db, v)
     return v
 
 

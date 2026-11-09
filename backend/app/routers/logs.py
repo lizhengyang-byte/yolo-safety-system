@@ -517,12 +517,12 @@ def _build_trend_chart(trend: list):
     return drawing
 
 
-@router.get("/report")
-def export_report(period: str = Query("week", pattern="^(week|month)$"), db: Session = Depends(get_db)):
-    """导出安全报告 PDF：周报（近 7 天）/ 月报（近 30 天）。
+def build_report_pdf(db: Session, days: int, period_name: str) -> tuple[bytes, str]:
+    """构建安全报告 PDF，返回 (pdf_bytes, filename)。
 
     内容：统计摘要（期间违规总数/日均/今日/在线摄像头）、违规趋势图、
     类型分布、点位排行、违规明细（前 50 条）。
+    供 /api/logs/report 下载与邮件发送/定时推送共用。
     """
     try:
         import reportlab  # noqa: F401
@@ -546,8 +546,6 @@ def export_report(period: str = Query("week", pattern="^(week|month)$"), db: Ses
         TableStyle,
     )
 
-    days = 7 if period == "week" else 30
-    period_name = "周报" if period == "week" else "月报"
     start_dt = datetime.combine(
         date.today() - timedelta(days=days - 1), datetime.min.time()
     )
@@ -760,8 +758,20 @@ def export_report(period: str = Query("week", pattern="^(week|month)$"), db: Ses
     buf.seek(0)
 
     fname = f"安全{period_name}_{trend[0]['date']}_{trend[-1]['date']}.pdf"
+    return buf.getvalue(), fname
+
+
+@router.get("/report")
+def export_report(
+    period: str = Query("week", pattern="^(week|month)$"),
+    db: Session = Depends(get_db),
+):
+    """下载安全报告 PDF：周报（近 7 天）/ 月报（近 30 天）。"""
+    days = 7 if period == "week" else 30
+    period_name = "周报" if period == "week" else "月报"
+    pdf, fname = build_report_pdf(db, days, period_name)
     return StreamingResponse(
-        buf,
+        io.BytesIO(pdf),
         media_type="application/pdf",
         headers={
             "Content-Disposition": (
@@ -770,3 +780,48 @@ def export_report(period: str = Query("week", pattern="^(week|month)$"), db: Ses
             )
         },
     )
+
+
+REPORT_PERIOD_MAP = {
+    "daily": (1, "日报"),
+    "week": (7, "周报"),
+    "month": (30, "月报"),
+}
+
+
+@router.post("/report/email")
+def email_report(
+    period: str = Query("week", pattern="^(daily|week|month)$"),
+    db: Session = Depends(get_db),
+):
+    """生成报告 PDF 并邮件发送（导出后直接发邮件）。"""
+    from ..services.mailer import send_custom_email
+    from ..services.settings_service import effective_report_recipients, get_mail_config
+
+    days, period_name = REPORT_PERIOD_MAP[period]
+    cfg = get_mail_config(db)
+    cfg = {**cfg, "to": effective_report_recipients(db)}
+    if not cfg.get("host") or not cfg.get("to"):
+        raise HTTPException(
+            status_code=400,
+            detail="未配置邮件服务器或收件人，请先在「预警配置 → 邮件与报告」中设置",
+        )
+
+    pdf, fname = build_report_pdf(db, days, period_name)
+    subject = f"【智慧工地】安全{period_name}（{datetime.now().strftime('%Y-%m-%d')}）"
+    html = (
+        f"<p style='font-family:Microsoft YaHei,Arial;'>"
+        f"附件为安全{period_name}，统计区间近 {days} 天，请查收。</p>"
+    )
+    ok = send_custom_email(
+        cfg,
+        subject,
+        f"安全{period_name}见附件。",
+        html,
+        [(pdf, fname, "application/pdf")],
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=500, detail="邮件发送失败，请检查 SMTP 配置或后端日志"
+        )
+    return {"message": f"{period_name}已发送至 {cfg['to']}", "filename": fname}

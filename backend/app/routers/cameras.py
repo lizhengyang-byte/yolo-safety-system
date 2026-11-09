@@ -124,4 +124,15 @@ def update_status(camera_id: int, status: str, db: Session = Depends(get_db)):
     cam.status = status
     db.commit()
     db.refresh(cam)
+    from ..services.events import bus
+
+    bus.publish(
+        "camera_status",
+        {
+            "id": cam.id,
+            "name": cam.name,
+            "location": cam.location or "",
+            "status": cam.status,
+        },
+    )
     return cam

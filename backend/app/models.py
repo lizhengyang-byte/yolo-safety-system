@@ -91,3 +91,13 @@ class WarningEvent(Base):
     count = Column(Integer, nullable=False, default=0, comment="窗口内违规次数")
     triggered_at = Column(DateTime, default=_ts, index=True, comment="触发时间")
     is_read = Column(Boolean, nullable=False, default=False, comment="是否已读")
+
+
+class SystemSetting(Base):
+    """系统配置键值表（邮件 SMTP / 报告推送时间等，支持网页端在线修改）"""
+
+    __tablename__ = "system_settings"
+
+    key = Column(String(64), primary_key=True, comment="配置键")
+    value = Column(Text, default="", comment="配置值（字符串存储）")
+    updated_at = Column(DateTime, default=_ts, onupdate=_ts, comment="更新时间")

@@ -21,6 +21,7 @@ echo 已启动服务（各服务独立窗口，关闭窗口即停止）：
 echo   后端接口文档: http://localhost:8000/docs
 echo   后台数据看板: http://localhost:3000/dashboard   (默认账号 admin / admin123)
 echo   智慧大屏:     http://localhost:3000/screen
+echo   大屏 Kiosk:   deploy\start-screen.bat（全屏值班/电视墙）
 echo   临时演示:     http://localhost:3000/demo
 echo.
 echo 提示：推理服务默认未启动，需先在后台「摄像头管理」录入设备，

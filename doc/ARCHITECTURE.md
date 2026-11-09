@@ -46,7 +46,7 @@ Vue3 前端 (frontend/) ◀────── /api + /images ──────�
 2. **后端 `backend/`**（FastAPI + SQLAlchemy）— 业务核心：摄像头/违规/日志/预警的 CRUD 与聚合；同时充当"演示模式推理机"（独立加载模型，复同一套 detector/judge/annotate）。
 3. **推理服务 `inference/`**（Python + OpenCV + Ultralytics）— 与后端解耦的独立进程：从后端拉取启用摄像头，每摄像头一个线程拉流检测，违规时抓拍并 multipart 上报。
 4. **流媒体 `deploy/mediamtx.yml`**（MediaMTX）— 摄像头 RTSP 流的收转中心：入 8554，出 8080（FLV/WebRTC），前端靠它预览，推理服务靠它稳定拉流。
-5. **数据库** — 四张表：`cameras`（设备）、`violations`（违规留痕）、`warning_rules` / `warning_events`（预警规则与事件）。本地 SQLite，Docker 用 MySQL。
+5. **数据库** — 五张表：`cameras`（设备）、`violations`（违规留痕）、`warning_rules` / `warning_events`（预警规则与事件）、`system_settings`（邮件/报告配置键值）。本地 SQLite，Docker 用 MySQL。
 
 ### Technology Stack
 
@@ -69,7 +69,7 @@ Vue3 前端 (frontend/) ◀────── /api + /images ──────�
 │   ├── main.py                  # 入口：建表 → _ensure_schema 补列 → 静态目录 → CORS → 模型预热 → 路由注册
 │   ├── config.py                # 全部配置（pydantic-settings，.env 可覆盖）
 │   ├── database.py              # 引擎（SQLite check_same_thread / MySQL 连接池）+ get_db
-│   ├── models.py                # 四张表 ORM（时间戳一律 default=datetime.now 本地时间）
+│   ├── models.py                # 五张表 ORM（时间戳一律 default=datetime.now 本地时间）
 │   ├── schemas.py               # 请求/响应模型（FastAPI 校验 + Swagger 生成）
 │   ├── security.py              # JWT 签发（HS256，当前未强制校验）
 │   ├── detection/               # detector/judge/annotate —— 与 inference/ 逐行一致（双份同步）
@@ -131,7 +131,8 @@ Vue3 前端 (frontend/) ◀────── /api + /images ──────�
   → ② 规则匹配（enabled=true，camera_id/type 空=通配）
   → ③ 窗口统计（最近 window_minutes 分钟该摄像头该类型违规数 ≥ threshold）
   → 生成 warning_events + commit
-  → 前端顶栏每 10s 轮询 /api/warnings/unread-count → 未读徽标 + 弹窗
+  → SSE 事件推送（/api/realtime/stream）+ 邮件通知（可选，正文+抓拍图附件）
+  → 前端顶栏/看板/大屏实时刷新（60s 轮询兜底）
 ```
 
 ### State Management（前端）

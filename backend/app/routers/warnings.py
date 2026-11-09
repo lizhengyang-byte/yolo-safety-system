@@ -116,3 +116,13 @@ def mark_all_read(db: Session = Depends(get_db)):
     )
     db.commit()
     return {"message": f"已全部标记为已读（{n} 条）"}
+
+
+@router.post("/email/test")
+def email_test(db: Session = Depends(get_db)):
+    """发送测试邮件，用于验证 SMTP 配置（未配置会返回提示）。"""
+    from ..services.mailer import send_test_email
+    from ..services.settings_service import get_mail_config
+
+    ok, message = send_test_email(get_mail_config(db))
+    return {"ok": ok, "message": message}

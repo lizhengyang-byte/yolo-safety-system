@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     DEMO_CONF_THRESHOLD: float = 0.5
     DEMO_DEVICE: str = "cpu"
 
+    # ---------- 预警邮件通知（SMTP）----------
+    # 未配置 SMTP_HOST / MAIL_TO 时自动跳过发送，不影响系统运行
+    MAIL_ENABLED: bool = True
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 465
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_SSL: bool = True          # 465 端口一般用 SSL
+    SMTP_STARTTLS: bool = False    # 587 端口一般用 STARTTLS（此时 SMTP_SSL=False）
+    MAIL_FROM: str = ""            # 发件人，留空则用 SMTP_USER
+    MAIL_TO: str = ""              # 收件人，多个用英文逗号分隔
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

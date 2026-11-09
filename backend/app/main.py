@@ -1,4 +1,5 @@
 """FastAPI 应用入口"""
+import asyncio
 import os
 import threading
 from pathlib import Path
@@ -9,7 +10,16 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
-from .routers import auth, cameras, demo, logs, violations, warnings
+from .routers import (
+    auth,
+    cameras,
+    demo,
+    logs,
+    realtime,
+    violations,
+    warnings,
+)
+from .routers import settings as settings_router
 
 # 建表（生产环境建议用 init.sql 或 alembic 迁移）
 Base.metadata.create_all(bind=engine)
@@ -61,7 +71,13 @@ def _warmup_demo_model():
 
 
 @app.on_event("startup")
-def startup_warmup():
+async def startup_warmup():
+    # 绑定事件循环给 SSE 事件总线（支持从同步线程安全推送）
+    from .services.events import bus
+    from .services.report_scheduler import start_report_scheduler
+
+    bus.bind_loop(asyncio.get_running_loop())
+    start_report_scheduler()
     threading.Thread(target=_warmup_demo_model, daemon=True).start()
 
 # CORS：允许前端跨域访问
@@ -87,6 +103,8 @@ app.include_router(violations.router, prefix="/api/violations", tags=["违规记
 app.include_router(logs.router, prefix="/api/logs", tags=["安全日志"])
 app.include_router(demo.router, prefix="/api/demo", tags=["临时演示"])
 app.include_router(warnings.router, prefix="/api/warnings", tags=["预警中心"])
+app.include_router(realtime.router, prefix="/api/realtime", tags=["实时推送"])
+app.include_router(settings_router.router, prefix="/api/settings", tags=["系统配置"])
 
 
 @app.get("/api/health", tags=["健康检查"])

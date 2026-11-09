@@ -128,6 +128,7 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElNotification } from "element-plus";
 import { getUnreadCount } from "@/api/warning";
+import { useRealtime } from "@/composables/useRealtime";
 
 const router = useRouter();
 const collapsed = ref(false);
@@ -161,9 +162,14 @@ function handleCommand(cmd: string) {
   }
 }
 
+// 实时推送：新预警到达立即刷新铃铛（SSE），60s 轮询仅作兜底
+useRealtime({
+  warning: () => pollUnread(),
+});
+
 onMounted(() => {
   pollUnread();
-  bellTimer = window.setInterval(pollUnread, 10000);
+  bellTimer = window.setInterval(pollUnread, 60000);
 });
 
 onBeforeUnmount(() => {

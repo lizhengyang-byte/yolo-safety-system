@@ -89,12 +89,19 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 | `POST /api/cameras/test` | RTSP 连通性测试（8 秒兜底，不可阻塞事件循环） |
 | `GET/POST /api/warnings/rules`、`PUT/DELETE /api/warnings/rules/{id}` | 预警规则 CRUD（camera_id 空=全部、violation_type 空=全部、threshold、window_minutes、enabled） |
 | `GET /api/warnings/events` | 预警事件分页（`unread_only` 筛选） |
-| `GET /api/warnings/unread-count` | 未读预警数（顶栏铃铛 10s 轮询） |
+| `GET /api/warnings/unread-count` | 未读预警数（SSE 实时刷新，60s 轮询兜底） |
 | `POST /api/warnings/events/read?ids=..`、`POST /api/warnings/events/read-all` | 标记已读 |
+| `GET /api/realtime/stream` | SSE 实时推送（`?token=` 鉴权）：事件 `violation` / `warning` / `camera_status`，15s 心跳；前端 `composables/useRealtime.ts` 共享单连接，轮询仅作兜底 |
+| `POST /api/warnings/email/test` | 预警邮件自检（SMTP 未配置时返回提示） |
+| `GET/PUT /api/settings/mail`、`POST /api/settings/mail/test` | 邮件 SMTP 配置读写（密码脱敏，空值不修改）与测试发送；网页「预警中心 → 预警配置」使用 |
+| `GET/PUT /api/settings/report`、`POST /api/settings/report/send?period=daily\|week\|month` | 报告推送配置（预警邮件开关/日报/周报/收件人）与立即发送 |
+| `POST /api/logs/report/email?period=week\|month` | 生成报告 PDF 并邮件发送（看板导出下拉里的“邮件发送”） |
 
 `violations` 表新增列 `anno_url`（标注证据图）、`detections_json`（帧内检测明细）；后端启动时 `_ensure_schema()` 自动 ALTER TABLE 补列（SQLite/MySQL 通用）。
 
-**预警触发链路**：违规入库（`violations.py` / `demo.py` 两条路径）commit 后调用 `app/services/warnings.py::trigger_warning_check` —— 匹配启用规则 → 统计窗口内违规数 ≥ 阈值 → 生成 `warning_events`（同 camera+type 10 分钟冷却防刷屏）。预警规则/事件为新表，`create_all` 自动创建（`warning_rules`、`warning_events`）。
+**预警触发链路**：违规入库（`violations.py` / `demo.py` 两条路径）commit 后调用 `app/services/warnings.py::trigger_warning_check` —— 匹配启用规则 → 统计窗口内违规数 ≥ 阈值 → 生成 `warning_events`（同 camera+type 10 分钟冷却防刷屏）。预警规则/事件为新表，`create_all` 自动创建（`warning_rules`、`warning_events`）。生成事件后同时：① 通过 `services/events.py` 事件总线 SSE 推送；② 后台线程调用 `services/mailer.py` 发邮件（HTML 正文 + 该摄像头/类型最近一条抓拍图附件）。SMTP 配置见 `backend/.env.example`，也可在后台「预警中心 → 预警配置」网页修改（`system_settings` 表优先于 .env）；未配置 `SMTP_HOST/MAIL_TO` 时自动跳过。日报/周报由 `services/report_scheduler.py` 后台线程每 30 秒检查一次配置时间并发送，发送记录写入 `report.last_daily_sent` / `report.last_weekly_sent`。
+
+**智慧大屏**：`/screen` 独立全屏路由（深色，1920×1080 等比缩放），支持 `?layout=overview|alerts`、`?rotate=秒` 值班轮播、`?present=1` 展厅模式；`deploy/start-screen.bat` 用 Chrome/Edge kiosk 全屏打开。视频轮巡（flv.js 宫格）为后续第二批。
 
 ### 违规判定模式（`judge.py`）
 
@@ -118,7 +125,7 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 ### 技术栈要点
 
 - **Python 依赖用 uv 管理**，各子项目有独立 `pyproject.toml`（backend / inference / 根目录三份）。PyTorch 通过 `[tool.uv.sources]` 固定到 `pytorch-cu132` 索引（有 NVIDIA GPU 时装 CUDA 版，无则回落 CPU）。
-- **数据库**：`backend/app/database.py` 按 `DATABASE_URL` 是否 sqlite 区分引擎参数（SQLite 需 `check_same_thread=False`，MySQL 用连接池）。建表由 `Base.metadata.create_all` 在启动时自动完成（生产可用 `backend/init.sql`）。四张表：`cameras`、`violations`、`warning_rules`（预警规则）、`warning_events`（预警事件）。
+- **数据库**：`backend/app/database.py` 按 `DATABASE_URL` 是否 sqlite 区分引擎参数（SQLite 需 `check_same_thread=False`，MySQL 用连接池）。建表由 `Base.metadata.create_all` 在启动时自动完成（生产可用 `backend/init.sql`）。五张表：`cameras`、`violations`、`warning_rules`（预警规则）、`warning_events`（预警事件）、`system_settings`（邮件/报告配置键值）。
 - **认证**：JWT（`security.py`），前端 `utils/request.ts` 拦截器自动附加 token，401 时跳转登录页。
 - **Docker**：后端/inference 均用 `python:3.12-slim` + requirements.txt（非 pyproject）；前端 node 构建 + nginx 反代 `/api`、`/images` 到 backend。模型权重通过 volume 挂载。
 - **流媒体**：`deploy/mediamtx.yml` 配置 RTSP 入 8554、HTTP 出 8080（FLV/WebRTC），浏览器经 flv.js 播放。
