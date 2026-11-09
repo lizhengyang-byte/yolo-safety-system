@@ -5,7 +5,9 @@
         :online="data.online_cameras"
         :unread="unread"
         :is-fullscreen="isFullscreen"
+        :rotate-on="rotateOn"
         @toggle-fullscreen="toggleFullscreen"
+        @toggle-rotate="toggleRotate"
         @exit="exitScreen"
       />
 
@@ -133,7 +135,10 @@ const fixedLayout: LayoutMode | null = VALID_LAYOUTS.includes(
 const layoutMode = ref<LayoutMode>(fixedLayout || "overview");
 const rotateSec = Math.max(0, Number(route.query.rotate || 0) || 0);
 const present = route.query.present === "1";
+const rotateOn = ref(false); // 值班轮播是否开启（可由 URL 或页面按钮控制）
 let rotateTimer: number | null = null;
+const ROTATE_ORDER: LayoutMode[] = ["overview", "alerts"];
+const ROTATE_PERIOD = Math.max(8, rotateSec || 25) * 1000;
 
 // ---- 告警插播 ----
 const banner = ref<{ typeLabel: string; camera: string; time: string } | null>(null);
@@ -222,6 +227,29 @@ function playBeep() {
   }
 }
 
+function stopRotate() {
+  rotateOn.value = false;
+  if (rotateTimer !== null) {
+    window.clearInterval(rotateTimer);
+    rotateTimer = null;
+  }
+}
+
+function startRotate() {
+  if (rotateTimer !== null) return;
+  rotateOn.value = true;
+  rotateTimer = window.setInterval(() => {
+    const i = ROTATE_ORDER.indexOf(layoutMode.value);
+    layoutMode.value = ROTATE_ORDER[(i + 1) % ROTATE_ORDER.length];
+  }, ROTATE_PERIOD);
+}
+
+/** 页面按钮：一键启停值班轮播（无需 Kiosk，直接在网页里切换布局） */
+function toggleRotate() {
+  if (rotateOn.value) stopRotate();
+  else startRotate();
+}
+
 async function toggleFullscreen() {
   try {
     if (!document.fullscreenElement) {
@@ -245,19 +273,15 @@ function exitScreen() {
 
 onMounted(() => {
   document.addEventListener("fullscreenchange", onFsChange);
-  // 未指定固定布局且开启 rotate 时，值班模式自动轮换 overview ↔ alerts
+  // 未指定固定布局且 URL 带 rotate 时，自动进入值班轮播（等同于网页按钮「值班轮播」）
   if (!fixedLayout && rotateSec > 0) {
-    const order: LayoutMode[] = ["overview", "alerts"];
-    rotateTimer = window.setInterval(() => {
-      const i = order.indexOf(layoutMode.value);
-      layoutMode.value = order[(i + 1) % order.length];
-    }, rotateSec * 1000);
+    startRotate();
   }
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("fullscreenchange", onFsChange);
-  if (rotateTimer !== null) window.clearInterval(rotateTimer);
+  stopRotate();
   if (bannerTimer !== null) window.clearTimeout(bannerTimer);
   audioCtx?.close().catch(() => {});
 });

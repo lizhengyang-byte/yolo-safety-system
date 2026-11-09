@@ -25,6 +25,15 @@
         <button class="sh-btn" title="全屏 / 退出全屏" @click="$emit('toggle-fullscreen')">
           <el-icon><FullScreen /></el-icon>{{ isFullscreen ? "退出全屏" : "全屏" }}
         </button>
+        <button
+          class="sh-btn ghost"
+          :class="{ on: rotateOn }"
+          :title="rotateOn ? '轮播中：点此停止' : '启动值班轮播（总览 ↔ 告警）'"
+          @click="$emit('toggle-rotate')"
+        >
+          <el-icon><Refresh v-if="rotateOn" /><View v-else /></el-icon>
+          {{ rotateOn ? "停止轮播" : "值班轮播" }}
+        </button>
         <button class="sh-btn ghost" title="返回后台看板" @click="$emit('exit')">
           <el-icon><Back /></el-icon>返回
         </button>
@@ -40,8 +49,13 @@ defineProps<{
   online: number;
   unread: number;
   isFullscreen: boolean;
+  rotateOn?: boolean;
 }>();
-defineEmits<{ (e: "toggle-fullscreen"): void; (e: "exit"): void }>();
+defineEmits<{
+  (e: "toggle-fullscreen"): void;
+  (e: "toggle-rotate"): void;
+  (e: "exit"): void;
+}>();
 
 const now = ref(new Date());
 let timer: number | null = null;
@@ -200,6 +214,12 @@ onBeforeUnmount(() => {
 .sh-btn:hover {
   background: rgba(47, 107, 255, 0.38);
   box-shadow: 0 0 16px rgba(79, 156, 255, 0.45);
+}
+.sh-btn.on {
+  color: #06101f;
+  background: linear-gradient(135deg, #22d3ee, #2f6bff);
+  border-color: rgba(34, 211, 238, 0.6);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.5);
 }
 .sh-btn.ghost {
   background: transparent;

@@ -7,6 +7,8 @@ REM    deploy\start-screen.bat                默认自动轮播（overview ↔ 
 REM    deploy\start-screen.bat alerts         固定“告警”布局
 REM    deploy\start-screen.bat auto 30        自动轮播，30s
 REM  说明：需先启动后端 + 前端（start-local.bat）；本脚本只负责全屏打开浏览器。
+REM        日常也可以直接在网页里点「进入智慧大屏 → 全屏值班」进入，无需本脚本；
+REM        本脚本适合开机自启 / 无边框 Kiosk / 自动允许告警声音的值班机。
 REM ============================================================
 setlocal
 set "BASE=http://localhost:3000/screen"

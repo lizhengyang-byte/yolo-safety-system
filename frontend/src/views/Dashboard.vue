@@ -12,9 +12,27 @@
           </el-radio-group>
         </div>
         <div class="toolbar-actions">
-          <el-button class="screen-entry" @click="openScreen">
-            <el-icon class="el-icon--left"><DataBoard /></el-icon>进入智慧大屏
-          </el-button>
+          <el-dropdown @command="onScreenCommand" trigger="click">
+            <el-button class="screen-entry">
+              <el-icon class="el-icon--left"><DataBoard /></el-icon>进入智慧大屏<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="kiosk">
+                  <el-icon class="btn-ico"><FullScreen /></el-icon>进入大屏（全屏值班 / 电视墙）
+                </el-dropdown-item>
+                <el-dropdown-item divided command="overview">
+                  <el-icon class="btn-ico"><View /></el-icon>总览布局
+                </el-dropdown-item>
+                <el-dropdown-item command="alerts">
+                  <el-icon class="btn-ico"><Bell /></el-icon>告警布局
+                </el-dropdown-item>
+                <el-dropdown-item command="rotate">
+                  <el-icon class="btn-ico"><Refresh /></el-icon>轮播值班（总览 ↔ 告警）
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-dropdown @command="onReportCommand">
             <el-button type="primary" :loading="exporting || emailing">
               导出 / 发送报告<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -182,6 +200,25 @@ use([LineChart, BarChart, PieChart, GridComponent, TooltipComponent, LegendCompo
 
 const router = useRouter();
 const openScreen = () => router.push("/screen");
+
+/**
+ * 进入大屏（全部在网页内完成，无需 Kiosk 脚本）：
+ * - kiosk：跳转大屏并自动进入轮播 + 全屏（浏览器全屏 API）
+ * - overview / alerts：固定布局
+ * - rotate：进入大屏并开启值班轮播
+ */
+function onScreenCommand(cmd: string) {
+  if (cmd === "kiosk" || cmd === "rotate") {
+    router.push({ path: "/screen", query: { rotate: "25" } });
+    if (cmd === "kiosk") {
+      // 浏览器全屏需要用户手势：路由跳转后立即请求全屏
+      const req = document.documentElement.requestFullscreen;
+      if (req) req.call(document.documentElement).catch(() => {});
+    }
+  } else {
+    router.push({ path: "/screen", query: { layout: cmd } });
+  }
+}
 const typeColor = (t: string) => TYPE_COLORS[t] || "#2f6bff";
 
 const loading = ref(false);
