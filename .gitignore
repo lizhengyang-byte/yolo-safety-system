@@ -14,7 +14,7 @@ backend/images/
 *.db
 *.jpg
 *.jpeg
-*.png
+
 
 # 文档截图例外：README 展示用截图允许入库
 !doc/images/screenshots/
