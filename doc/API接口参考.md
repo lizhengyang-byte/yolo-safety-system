@@ -20,6 +20,9 @@
 - [日志与报表接口](#日志与报表接口)
 - [演示接口](#演示接口)
 - [预警中心接口](#预警中心接口)
+- [实时推送（SSE）](#实时推送sse)
+- [危险区域接口（多边形 ROI）](#危险区域接口多边形-roi)
+- [系统配置（邮件与报告）](#系统配置邮件与报告)
 - [最佳实践](#最佳实践)
 
 ---
@@ -105,6 +108,10 @@ Authorization: Bearer <access_token>
 | 预警 | `POST /api/warnings/events/read-all` | 全部标已读 |
 | 预警 | `POST /api/warnings/email/test` | 预警邮件自检（未配置返回提示） |
 | 实时 | `GET /api/realtime/stream` | SSE 实时推送（`violation` / `warning` / `camera_status`） |
+| 危险区域 | `GET /api/zones` | 危险区域列表（可按 `camera_id` 过滤） |
+| 危险区域 | `POST /api/zones` | 新增危险区域（归一化多边形） |
+| 危险区域 | `PUT /api/zones/{id}` | 更新危险区域 |
+| 危险区域 | `DELETE /api/zones/{id}` | 删除危险区域 |
 | 配置 | `GET/PUT /api/settings/mail` | 邮件 SMTP 配置读写（密码脱敏） |
 | 配置 | `POST /api/settings/mail/test` | 发送测试邮件 |
 | 配置 | `GET/PUT /api/settings/report` | 报告推送配置（预警邮件/日报/周报/收件人） |
@@ -554,6 +561,47 @@ EventSource 无法设置 Authorization 头，故 token 走 query。响应为 `te
 | `camera_status` | `id / name / location / status` |
 
 前端 `composables/useRealtime.ts` 全局共享一条连接，断线自动重连；看板/顶栏/大屏均改为事件驱动（60s 轮询兜底）。
+
+---
+
+## 危险区域接口（多边形 ROI）
+
+危险区域（`danger_zones` 表）绑定到具体摄像头，用于"人员闯入危险区"判定（违规类型 `zone_intrusion`）。多边形坐标为**归一化值**（0~1，相对画面宽高），推理服务按 `camera_id` 拉取后实时判定。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/zones?camera_id=` | 列出危险区域（可按摄像头过滤；camera_id 省略返回全部） |
+| `POST` | `/api/zones` | 新增区域（多边形至少 3 点、坐标 0~1，非法返回 400） |
+| `PUT` | `/api/zones/{id}` | 更新区域（名称/类别/多边形/阈值/启用状态，均可选） |
+| `DELETE` | `/api/zones/{id}` | 删除区域 |
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `camera_id` | int | 绑定摄像头 ID |
+| `zone_name` | str | 区域名称（如"深基坑西侧"） |
+| `zone_type` | str | `danger`（配电房/危险区）/ `pit`（基坑）/ `lifting`（吊装区）/ `other` |
+| `polygon` | `[[x,y],...]` | 归一化多边形顶点（0~1） |
+| `min_confidence` | float | 人员检测置信度阈值，默认 0.4 |
+| `min_dwell_seconds` | float | 停留时长阈值（秒），默认 2.0；路过不触发 |
+| `enabled` | bool | 是否启用 |
+
+**新增示例：**
+
+```bash
+curl -X POST http://localhost:8000/api/zones \
+  -H "Authorization: Bearer <JWT>" -H "Content-Type: application/json" \
+  -d '{
+    "camera_id": 1, "zone_name": "深基坑西侧", "zone_type": "pit",
+    "polygon": [[0.2,0.3],[0.6,0.3],[0.6,0.8],[0.2,0.8]],
+    "min_confidence": 0.45, "min_dwell_seconds": 3.0, "enabled": true
+  }'
+```
+
+**响应（201）：** 返回含 `id`、`polygon`（解析后的数组）、`created_at` 的完整区域对象。
+
+> 判定在推理服务侧完成：`zone.py` 取 Person 框底边中点归一化，射线法判内点 + 置信度过滤 + 停留时长累积，命中则上报 `violation_type=zone_intrusion` 并抓拍（证据图叠加紫红多边形）。
 
 ---
 

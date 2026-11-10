@@ -46,7 +46,7 @@ Vue3 前端 (frontend/) ◀────── /api + /images ──────�
 2. **后端 `backend/`**（FastAPI + SQLAlchemy）— 业务核心：摄像头/违规/日志/预警的 CRUD 与聚合；同时充当"演示模式推理机"（独立加载模型，复同一套 detector/judge/annotate）。
 3. **推理服务 `inference/`**（Python + OpenCV + Ultralytics）— 与后端解耦的独立进程：从后端拉取启用摄像头，每摄像头一个线程拉流检测，违规时抓拍并 multipart 上报。
 4. **流媒体 `deploy/mediamtx.yml`**（MediaMTX）— 摄像头 RTSP 流的收转中心：入 8554，出 8080（FLV/WebRTC），前端靠它预览，推理服务靠它稳定拉流。
-5. **数据库** — 五张表：`cameras`（设备）、`violations`（违规留痕）、`warning_rules` / `warning_events`（预警规则与事件）、`system_settings`（邮件/报告配置键值）。本地 SQLite，Docker 用 MySQL。
+5. **数据库** — 六张表：`cameras`（设备）、`violations`（违规留痕）、`warning_rules` / `warning_events`（预警规则与事件）、`system_settings`（邮件/报告配置键值）、`danger_zones`（危险区域多边形）。本地 SQLite，Docker 用 MySQL。
 
 ### Technology Stack
 
@@ -69,10 +69,10 @@ Vue3 前端 (frontend/) ◀────── /api + /images ──────�
 │   ├── main.py                  # 入口：建表 → _ensure_schema 补列 → 静态目录 → CORS → 模型预热 → 路由注册
 │   ├── config.py                # 全部配置（pydantic-settings，.env 可覆盖）
 │   ├── database.py              # 引擎（SQLite check_same_thread / MySQL 连接池）+ get_db
-│   ├── models.py                # 五张表 ORM（时间戳一律 default=datetime.now 本地时间）
+│   ├── models.py                # 六张表 ORM（时间戳一律 default=datetime.now 本地时间）
 │   ├── schemas.py               # 请求/响应模型（FastAPI 校验 + Swagger 生成）
 │   ├── security.py              # JWT 签发（HS256，当前未强制校验）
-│   ├── detection/               # detector/judge/annotate —— 与 inference/ 逐行一致（双份同步）
+│   ├── detection/               # detector/judge/annotate/zone —— 与 inference/ 逐行一致（双份同步）
 │   ├── routers/                 # auth / cameras / violations / logs / demo / warnings
 │   └── services/warnings.py     # 预警触发三层逻辑（冷却 → 规则匹配 → 窗口统计）
 ├── inference/                   # 推理服务（独立进程）
@@ -162,7 +162,7 @@ Vue3 前端 (frontend/) ◀────── /api + /images ──────�
 
 ### 决策 2：双份同步（inference/ 与 backend/app/detection/ 逐行一致）
 
-**What we decided:** `detector.py / judge.py / annotate.py` 在 `inference/` 与 `backend/app/detection/` **各存一份、逐行一致**；改动必须同步。
+**What we decided:** `detector.py / judge.py / annotate.py / zone.py` 在 `inference/` 与 `backend/app/detection/` **各存一份、逐行一致**；改动必须同步。
 
 **Context:** 演示模式由后端独立加载模型推理，不能跨进程调用推理服务；为复用同一套检测/判定/标注逻辑，把文件复制到了后端。
 
@@ -314,10 +314,25 @@ frontend/
 2. `Base.metadata.create_all` 启动时自动建新表；**老表加列**需走 `main.py` 的 `_ensure_schema` 模式（幂等 ALTER）或引入 Alembic；
 3. `schemas.py` 加对应 Pydantic 模型，`routers/` 加 CRUD。
 
-### 新增一种检测能力（如"危险区域入侵"）
+### 新增一种检测能力
 
-- 画面划禁区，person 框与禁区 IoU 判定——可在 `judge.py` 加新判定模式，或在前端划区 + 上报区域坐标；
-- 复用 `annotate.py` 画禁区框 + `warning` 链路（新 violation_type）。
+系统已实践了两种扩展范式，可为新增检测能力参考：
+
+**① 引入专用小模型（如"火源/烟雾检测"）—— 已实现**
+
+- 训练/下载新 YOLO 模型，放入 `weights/<用途>/`；在 `inference/config.yaml` 加 `xxx_model_path` 等配置；
+- `stream_worker.py` 在 `__init__` 并行加载第二检测器，主循环对它单独 predict，与 PPE 检测结果合并判定；
+- 复用 `judge.py`（direct 模式）、`annotate.py`（新增类别配色 + `VIOLATION_LABELS`）、warning 链路（新 `violation_type`）；
+- 后端演示模式同步在 `demo.py` 加 `get_xxx_detector()` 并合并结果。
+- **实况**：火源模型 `fire.pt`（2 类 smoke/fire）即通过此范式接入，与 PPE 并行，全摄像头同时检测。
+
+**② 纯几何判定，不引入模型（如"危险区域闯入"）—— 已实现**
+
+- 复用已有 `Person` 检测框：取框底中点（脚下位置）归一化，射线法判是否在多边形内（`zone.py::point_in_polygon`）；
+- 区域配置存 `danger_zones` 表（绑定摄像头、归一化多边形、置信度、停留时长），`/api/zones` 提供 CRUD；
+- `stream_worker.py` 按 `camera_id` 定期拉取区域，维护"首次进入时间"做停留时长判定，命中即上报 `zone_intrusion`；
+- 前端 `views/zone/index.vue` 提供可视化多边形编辑器；`annotate.py::draw_zones` 在证据图上叠加多边形。
+- **实况**：危险区域闯入（配电房/基坑/吊装区）即通过此范式实现，无需新模型、几分钟级改动。
 
 ## Deployment Architecture
 
@@ -329,7 +344,7 @@ frontend/
 **构建产物：** 前端 `npm run build` → dist，nginx 托管并反代后端；后端/inference 用 `python:3.12-slim` + requirements.txt（非 pyproject）。
 
 **部署步骤（Docker）：**
-1. `weights/ppe/ppe.pt` 存在（volume 挂载）；
+1. `weights/ppe/ppe.pt` 与 `weights/fire/fire.pt` 存在（volume 挂载）；
 2. `docker compose up -d --build`；
 3. 浏览器访问 `http://localhost`，后端 `/docs`。
 

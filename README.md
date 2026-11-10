@@ -1,36 +1,78 @@
 # 工地 AI 安全智能监测系统（YOLO 版）
 
-## What This Does
+> 基于 **YOLOv8** 的工地安全智能监测平台：对接主流监控摄像头（海康 / 大华等，RTSP），
+> 实时识别 **未戴安全帽 / 未穿马甲 / 未戴口罩** 等 PPE 违规，并行检测 **火源 / 烟雾**，
+> 支持 **危险区域闯入**（多边形 ROI）判定；违规瞬间自动抓拍（原始帧 + 标注证据图）入库，
+> 并提供 **Vue3 可视化后台**（数据看板 / 实时监控 / 危险区域 / 违规记录 / 预警中心 / 安全日志 / 智慧大屏）。
+> 仓库同时保留原始视频文件 PPE 检测脚本。
 
-基于 **YOLOv8** 的工地安全智能监测后台：自动对接主流监控摄像头（海康 / 大华等，RTSP 协议），实时识别未戴安全帽 / 未穿马甲 / 未戴口罩等违规行为，**违规瞬间自动抓拍**（原始帧 + 标注证据图）入库，并提供 **Vue3 可视化后台**（数据看板 / 实时监控 / 违规记录 / 预警中心 / 日志导出）。仓库同时保留原始视频文件 PPE 检测脚本。
+**一句话：** 让 AI 盯着工地，替安全员抓拍每一个不规范穿戴、每一处火情、每一次危险区域闯入，把安全隐患留痕变成可管理的数据。
 
-一句话：**让 AI 盯着工地，替安全员抓拍每一个不规范穿戴瞬间，把违规留痕变成可管理的数据。**
+<table>
+<tr>
+<td align="center"><img src="doc/images/screenshots/dashboard.png" width="100%"/><br/><sub>数据看板</sub></td>
+<td align="center"><img src="doc/images/screenshots/monitor.png" width="100%"/><br/><sub>实时监控（AI 叠加）</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="doc/images/screenshots/fire_detect.png" width="100%"/><br/><sub>火源火灾检测</sub></td>
+<td align="center"><img src="doc/images/screenshots/zone.png" width="100%"/><br/><sub>危险区域配置</sub></td>
+</tr>
+</table>
 
-> ⚠️ **适配说明（本仓库已适配 `ppe.pt` 模型）**
+> ⚠️ **模型适配说明（本仓库已适配两套模型）**
 >
-> - 类别顺序（10 类）：`0 Hardhat, 1 Mask, 2 NO-Hardhat, 3 NO-Mask, 4 NO-Safety Vest, 5 Person, 6 Safety Cone, 7 Safety Vest, 8 machinery, 9 vehicle`
-> - 违规判定为 **direct 模式**：模型直接输出违规类（`NO-*`），出现即判违规，无需 IoU
-> - `inference/` 与 `backend/app/detection/` 均支持 `person_iou` 通用模式（正类装备模型）
-> - 后端演示模式会自动搜索模型路径（Docker 与本地均可用）
-> - 本地默认 **SQLite**（零依赖可跑），Docker 部署时由环境变量覆盖为 MySQL
+> - **PPE 模型 `weights/ppe/ppe.pt`**（10 类）：`0 Hardhat, 1 Mask, 2 NO-Hardhat, 3 NO-Mask, 4 NO-Safety Vest, 5 Person, 6 Safety Cone, 7 Safety Vest, 8 machinery, 9 vehicle`；违规判定为 **direct 模式**（模型直接输出违规类 `NO-*`，出现即判违规）。
+> - **火源模型 `weights/fire/fire.pt`**（2 类）：`0 smoke, 1 fire`；与 PPE **并行推理**，出现 `fire/smoke` 即判违规。
+> - 两套检测在每个接入的摄像头上**同时运行**；另支持**危险区域闯入**（复用 Person 检测框 + 多边形 ROI，无需新模型）。
+> - 本地默认 **SQLite**（零依赖可跑），Docker 部署时由环境变量覆盖为 MySQL。
 
-### 核心能力速览
+---
 
-- **监控设备对接**：RTSP 拉流 + MediaMTX 转发，后台实时预览（多路同屏 2×2 + 自动轮播 + **AI 检测框叠加**）
-- **AI 智能识别**：YOLOv8 识别未戴安全帽 / 未穿马甲 / 未戴口罩
-- **自动抓拍留痕**：违规瞬间保存 **原始帧 + 标注证据图**（检测框 + 中文违规横幅）双份入库
-- **安全日志管理**：违规时间 / 点位 / 类型 / 置信度日志，类型/摄像头/日期筛选 + **Excel 导出（内嵌违规图片缩略图）**
-- **PDF 安全报告**：一键导出 **周报 / 月报**（reportlab：统计摘要 + 违规趋势图 + 类型分布 + 点位排行 + 违规明细，中文无需系统字体）；支持**导出后直接邮件发送**
-- **预警中心**：自定义预警规则（摄像头 / 违规类型 / 次数阈值 / 时间窗口），违规频发自动触发事件，顶栏铃铛实时提醒（SSE 秒级推送）
-- **邮件告警（网页配置）**：预警中心「预警配置」页签在线配置 SMTP、预警邮件开关、日报/周报定时推送与收件人；预警邮件正文 + 抓拍图附件；报告导出可直接邮件发送
-- **智慧大屏**：独立深色全屏大屏（多屏布局 / 值班轮播 / 告警插播+声音 / Kiosk 全屏），适配 2K/4K 与电视墙
-- **Web 后台管理**：数据看板（7/30/90 天趋势切换、类型分布、摄像头排行、点位排行，**实时推送刷新** + 新增违规提醒）、摄像头管理（**RTSP 连通性测试**）、违规记录（详情抽屉：原图/标注图切换 + 帧内检测明细）
-- **临时演示模式**：直接调用笔记本摄像头实时识别 + 违规抓拍，无需接监控设备，适合现场演示（灵敏度调节 / 只看违规 / 画质 / 镜像 / 全屏 / 演示统计 / 抓拍时间线 / 环境自检）
-- **视频文件检测脚本**：对本地视频文件做 PPE 检测并导出标注视频（CPU / GPU）
+## 目录
+
+- [核心能力速览](#核心能力速览)
+- [功能介绍与界面预览](#功能介绍与界面预览)
+- [Quick Start（5 分钟跑起来）](#quick-start5-分钟跑起来)
+- [项目结构](#项目结构)
+- [核心概念](#核心概念)
+- [常用任务](#常用任务)
+- [配置说明](#配置说明)
+- [开发与质量关卡](#开发与质量关卡)
+- [常见问题排查](#常见问题排查)
+- [更多文档](#更多文档)
+- [License](#license)
+
+---
+
+## 核心能力速览
+
+### 🎯 AI 检测能力
+
+- **PPE 违规识别**：YOLOv8 识别未戴安全帽 / 未穿马甲 / 未戴口罩（`NO-Hardhat` / `NO-Safety Vest` / `NO-Mask`）
+- **火源火灾检测**：独立 YOLOv8n 模型并行检测 **火焰 / 烟雾**，全摄像头同时监测，火情零延迟留痕
+- **危险区域闯入**：为每个摄像头单独绘制**多边形危险区**（配电房 / 基坑 / 吊装区），人员进入且满足**置信度 + 停留时长**即报警（无需新模型）
+- **自动抓拍留痕**：每次违规保存 **原始帧 + 标注证据图**（检测框 + 中文违规横幅 + 危险区多边形）双份入库
+
+### 📊 可视化与告警
+
+- **实时监控**：RTSP + MediaMTX 转发，多路同屏 2×2 + 自动轮播 + **AI 检测框叠加**（红=违规、绿=合规、橙=火源、蓝=其他、紫=危险区域）
+- **数据看板**：今日/累计违规、在线摄像头、7/30/90 天趋势、类型分布、摄像头排行、点位排行，**SSE 实时刷新**
+- **预警中心**：自定义预警规则（摄像头 / 违规类型 / 次数阈值 / 时间窗口），违规频发自动触发，顶栏铃铛实时提醒
+- **邮件告警**：预警邮件（含抓拍图附件）+ 日报 / 周报 / 月报定时推送，网页在线配置 SMTP
+- **智慧大屏**：独立深色全屏大屏，多屏布局 / 值班轮播 / 告警插播 + 声音 / Kiosk，适配 2K/4K/电视墙
+- **安全日志与导出**：类型 / 摄像头 / 日期筛选，**Excel 导出内嵌违规图片缩略图**，PDF 周报 / 月报一键导出并可邮件发送
+
+### 🛠 系统与运维
+
+- **Web 后台管理**：数据看板、实时监控、临时演示、摄像头管理（RTSP 连通性测试）、危险区域、违规记录（详情抽屉）、预警中心、安全日志
+- **临时演示模式**：直接调用笔记本摄像头实时识别，无需接监控设备（灵敏度 / 只看违规 / 画质 / 镜像 / 全屏 / 演示统计 / 抓拍时间线 / 环境自检）
+- **原始脚本**：对本地视频文件做 PPE 检测并导出标注视频（CPU / GPU）
+
+---
 
 ## 功能介绍与界面预览
 
-> 以下截图均取自系统真实运行环境（深空科技蓝主题，Vue3 + Element Plus + ECharts 重新设计的视觉体系）。后台默认账号 `admin / admin123`。
+> 截图取自系统真实运行环境（深空科技蓝主题，Vue3 + Element Plus + ECharts 视觉体系）。后台默认账号 `admin / admin123`。
 
 ### 1. 登录认证
 
@@ -40,19 +82,27 @@ JWT 登录鉴权，登录态失效自动跳转登录页；记住密码、玻璃�
 
 ### 2. 数据看板
 
-聚合展示今日 / 累计违规、在线摄像头、近 N 天违规量；支持 7/30/90 天趋势切换，含违规趋势折线、违规类型分布环形图、摄像头违规排行与点位违规排行；**新违规通过 SSE 实时刷新**（增长即弹窗提醒，60s 轮询兜底），也可一键下载周报 / 月报 PDF 或**直接邮件发送报告**。
+聚合展示今日 / 累计违规、在线摄像头、近 N 天违规量；支持 **7/30/90 天趋势切换**，含违规趋势折线、违规类型分布环形图、摄像头违规排行与点位违规排行；**新违规通过 SSE 实时刷新**（增长即弹窗提醒，60s 轮询兜底），也可一键下载周报 / 月报 PDF 或**直接邮件发送报告**。
 
 ![数据看板](doc/images/screenshots/dashboard.png)
 
-### 3. 实时监控（AI 检测框叠加）
+### 3. 实时监控（AI 检测框叠加 + 危险区域叠加）
 
-选择最多 4 路摄像头同屏预览（2×2，支持自动轮播 / 全屏），画面经后端 YOLO 实时识别并叠加检测框（红=违规、绿=合规、蓝=其他目标），无违规不入库。
+选择最多 4 路摄像头同屏预览（2×2，支持自动轮播 / 全屏），画面经后端 YOLO 实时识别并叠加检测框：
+
+- 🟥 红框 = PPE 违规（NO-*）
+- 🟩 绿框 = 合规装备
+- 🟧 橙框 = **火源 / 烟雾**
+- 🟦 蓝框 = 其他目标（人 / 锥桶 / 机械 / 车辆）
+- 🟪 紫红虚线多边形 = **危险区域**（选中摄像头自动叠加显示其已配置区域）
+
+无违规不入库。
 
 ![实时监控](doc/images/screenshots/monitor.png)
 
-### 4. 临时演示
+### 4. 临时演示（无需接监控设备）
 
-无需接入监控设备，直接调用笔记本摄像头或本地视频文件做实时识别；可调灵敏度、只看违规、镜像、画质、全屏，带模型加载提示、延迟 / 帧率、演示统计与抓拍时间线，现场演示零门槛。
+直接调用笔记本摄像头或本地视频文件做实时识别；可调灵敏度、只看违规、镜像、画质、全屏，带模型加载提示、延迟 / 帧率、演示统计与抓拍时间线，现场演示零门槛。演示记录以"临时演示"（camera_id=0）入库，与正式链路判定逻辑完全一致（PPE + 火源双模型并行）。
 
 ![临时演示](doc/images/screenshots/demo.png)
 
@@ -62,19 +112,37 @@ JWT 登录鉴权，登录态失效自动跳转登录页；记住密码、玻璃�
 
 ![摄像头管理](doc/images/screenshots/camera.png)
 
-### 6. 违规记录
+### 6. 危险区域闯入（多边形 ROI）
 
-按类型 / 摄像头 / 日期筛选违规记录，列表内嵌**标注证据图**缩略图；点击任意行打开详情抽屉，可在原图与标注图间切换，并查看该帧全部检测目标（类别 / 置信度 / 区域坐标）。
+为每个摄像头单独配置危险多边形区域（配电房 / 基坑 / 吊装区等）。在「危险区域」页：**选择摄像头 → 上传画面快照（或载入最近抓拍）→ 在画布上点击绘制多边形 → 填写名称/类别/置信度/停留时长 → 保存**。推理服务按摄像头拉取区域，实时判定人员闯入并抓拍留痕。
+
+**判定原理**（纯几何，无需新模型）：取人员检测框**底边中点**（脚下位置）归一化后，用射线法判断是否落在多边形内；结合**置信度阈值**（默认 0.4）与**停留时长**（默认 2 秒）过滤"路过边缘"的误报，只有真正驻足在危险区才触发。
+
+![危险区域配置](doc/images/screenshots/zone.png)
+
+> 区域坐标为归一化值（0~1），分辨率变化不失真；证据图会用紫红多边形高亮命中的区域（见下方火源图同款标注风格）。
+
+### 7. 火源火灾检测（第二模型，与 PPE 并行）
+
+系统在 PPE 检测基础上**并行运行独立火源/烟雾模型**，每个接入摄像头 **同时**做 PPE 与火源检测。违规类型新增 `fire`（火源火灾）/ `smoke`（烟雾），走 direct 判定（出现即违规），与 PPE 共用抓拍/入库/预警/SSE/看板/大屏全链路。证据图为橙色火焰检测框 + 红色「违规: 火源火灾」横幅。
+
+![火源火灾检测](doc/images/screenshots/fire_detect.png)
+
+> 火源/烟雾置信度阈值默认 0.4（烟雾易误报可调高）；可在 `inference/config.yaml` 的 `fire_conf_threshold` 调整，前端预警配置里可直接对 `fire`/`smoke` 建规则。
+
+### 8. 违规记录
+
+按类型 / 摄像头 / 日期筛选违规记录，列表内嵌**标注证据图**缩略图；点击任意行打开详情抽屉，可在原图与标注图间切换，并查看该帧全部检测目标（类别 / 置信度 / 区域坐标）。违规类型涵盖 PPE、火源、危险区域闯入。
 
 ![违规记录](doc/images/screenshots/violation.png)
 
-### 7. 预警中心
+### 9. 预警中心
 
-自定义预警规则（摄像头 / 违规类型 / 时间窗口 / 次数阈值，留空 = 全部），违规频发自动生成预警事件并在顶栏铃铛**实时提醒（SSE，10 分钟冷却防刷屏）**；支持未读筛选与批量标记已读。**「预警配置」页签**可在线设置邮件 SMTP、预警邮件开关、日报/周报定时推送与收件人。
+自定义预警规则（摄像头 / 违规类型 / 时间窗口 / 次数阈值，留空 = 全部），违规频发自动生成预警事件并在顶栏铃铛**实时提醒（SSE，10 分钟冷却防刷屏）**；支持未读筛选与批量标记已读。违规类型下拉自动包含**火源火灾 / 烟雾 / 危险区域闯入**。**「预警配置」页签**可在线设置邮件 SMTP、预警邮件开关、日报/周报定时推送与收件人。
 
 ![预警中心](doc/images/screenshots/warning.png)
 
-### 8. 邮件告警与报告推送（网页配置）
+### 10. 邮件告警与报告推送（网页配置）
 
 在「预警中心 → 预警配置」：
 
@@ -82,13 +150,13 @@ JWT 登录鉴权，登录态失效自动跳转登录页；记住密码、玻璃�
 - **报告推送**：预警邮件开关、日报（时间）、周报（星期几 + 时间）、报告收件人，支持「立即发送报表」；
 - 保存即生效（写入 `system_settings` 表，优先级高于 `.env`）；预警邮件正文含抓拍图附件；每日/每周报告由后端定时任务自动发送。
 
-![1794211405508](image/README/1794211405508.png)
+![邮件告警配置](image/README/1794211405508.png)
 
-### 9. 智慧大屏
+### 11. 智慧大屏
 
 独立全屏深色大屏（`/screen`，1920×1080 等比缩放，适配 2K/4K/拼接屏）：核心指标、类型分布、违规排行、趋势主图（按天/今日时段）、实时抓拍轮播、最新预警、摄像头在线状态。
 
-![1794211278834](image/README/1794211278834.png)
+![智慧大屏](image/README/1794211278834.png)
 
 **启动方式（三选一，均为网页内直接进入，无需先跑脚本）：**
 
@@ -98,11 +166,13 @@ JWT 登录鉴权，登录态失效自动跳转登录页；记住密码、玻璃�
 
 支持 URL 参数：`?layout=overview|alerts`、`?rotate=秒`（值班轮播）、`?present=1`（展厅模式，隐藏操作按钮）与告警插播+提示音。
 
-### 10. 安全日志与导出
+### 12. 安全日志与导出
 
 违规记录自动沉淀为安全台账，支持按类型 / 摄像头 / 时间段筛选，**一键导出内嵌违规图片缩略图的中文 Excel**；详情抽屉可追溯每条违规的原始帧与 AI 标注证据。
 
 ![安全日志](doc/images/screenshots/log.png)
+
+---
 
 ## Quick Start（5 分钟跑起来）
 
@@ -120,7 +190,7 @@ cd backend
 uv sync
 uv run uvicorn app.main:app --reload
 
-# ② 推理服务（RTSP 拉流 + 检测 + 上报）
+# ② 推理服务（RTSP 拉流 + 检测 + 上报；PPE 与火源双模型并行）
 # 注意：必须从仓库根目录启动（inference 是包名，不是顶层目录）
 cd ..
 CONFIG_PATH=inference/config.local.yaml uv run python -m inference.main
@@ -143,18 +213,21 @@ ls weights/ppe/ppe.pt weights/fire/fire.pt
 docker compose up -d --build
 ```
 
-**Docker 环境由 `docker-compose.yml` 覆盖配置：** `DATABASE_URL` 指向 MySQL、`UPLOAD_DIR=/data/images`。
+**Docker 环境由 `docker-compose.yml` 覆盖配置：** `DATABASE_URL` 指向 MySQL、`UPLOAD_DIR=/data/images`、`./weights:/app/weights` 挂载模型。
 
-### Verify It's Working
+### 验证是否跑通
 
-| 检查项 | 方法                                               | 预期结果                                |
-| ------ | -------------------------------------------------- | --------------------------------------- |
-| 后端   | 打开`http://localhost:8000/docs`                 | Swagger 接口文档可访问                  |
-| 前端   | 打开`http://localhost:3000`                      | 登录页，用`admin / admin123` 登录     |
-| 演示   | 前端 →「临时演示」→ 授权摄像头 → 开始演示       | 画面实时叠加检测框，违规标红 + 抓拍入库 |
-| 图片   | 违规后访问`http://localhost:8000/images/xxx.jpg` | 能看到原始帧 / 标注证据图               |
+| 检查项 | 方法 | 预期结果 |
+| --- | --- | --- |
+| 后端 | 打开 `http://localhost:8000/docs` | Swagger 接口文档可访问 |
+| 前端 | 打开 `http://localhost:3000` | 登录页，用 `admin / admin123` 登录 |
+| 演示 | 前端 →「临时演示」→ 授权摄像头 → 开始演示 | 画面实时叠加检测框，违规标红 + 抓拍入库 |
+| 火源 | 演示页对准明火/烟雾 | 出现橙框 + 「违规: 火源火灾」并入库 |
+| 图片 | 违规后访问 `http://localhost:8000/images/xxx.jpg` | 能看到原始帧 / 标注证据图 |
 
-## Project Structure
+---
+
+## 项目结构
 
 ```
 yolo-safety-system/
@@ -162,35 +235,36 @@ yolo-safety-system/
 │   ├── app/
 │   │   ├── main.py          # 应用入口：建表、schema 演进、模型预热、路由注册
 │   │   ├── config.py        # pydantic-settings 配置（SQLite 默认 / MySQL 可覆盖）
-│   │   ├── models.py        # ORM 五张表（Camera / Violation / WarningRule / WarningEvent / SystemSetting）
+│   │   ├── models.py        # ORM 六张表（Camera / Violation / WarningRule / WarningEvent / SystemSetting / DangerZone）
 │   │   ├── schemas.py       # Pydantic 请求/响应模型
 │   │   ├── security.py      # JWT 认证
 │   │   ├── database.py      # 引擎与 Session（SQLite check_same_thread / MySQL 连接池）
-│   │   ├── detection/       # 演示模式检测模块（与 inference/ 双份同步）
-│   │   ├── routers/         # auth / cameras / violations / logs / demo / warnings / realtime / settings
-│   │   └── services/        # warnings（预警触发）/ events（SSE 总线）/ mailer（邮件）/ settings_service（配置）/ report_scheduler（日报周报定时）
+│   │   ├── detection/       # 演示模式检测模块（detector/judge/annotate/zone，与 inference/ 双份同步）
+│   │   ├── routers/         # auth / cameras / violations / logs / demo / warnings / realtime / settings / zones
+│   │   └── services/        # warnings(预警触发) / events(SSE) / mailer(邮件) / settings_service / report_scheduler
 │   ├── pyproject.toml / requirements.txt
 │   ├── init.sql             # 建库建表（生产用）
 │   └── Dockerfile
-├── inference/               # YOLO 推理服务（每摄像头一个 StreamWorker 线程）
+├── inference/               # YOLO 推理服务（每摄像头一个 StreamWorker 线程，PPE + 火源 + 区域判定）
 │   ├── detector.py          # YOLO 封装（predict 支持 conf 覆盖）
 │   ├── judge.py             # 违规判定（direct / person_iou）
-│   ├── annotate.py          # 标注证据图（检测框 + 中文横幅）
-│   ├── stream_worker.py     # RTSP 拉流 + 抓拍 + multipart 上报
+│   ├── annotate.py          # 标注证据图（检测框 + 中文横幅 + 危险区多边形）
+│   ├── zone.py              # 危险区域内点判定（射线法 + 落脚点）
+│   ├── stream_worker.py     # RTSP 拉流 + 双模型检测 + 区域判定 + 抓拍 + multipart 上报
 │   ├── main.py              # 多摄像头并发入口（从后端拉取启用列表）
 │   ├── config.yaml          # Docker 配置
 │   ├── config.local.yaml    # 本地开发配置
 │   └── Dockerfile
 ├── frontend/                # Vue3 前端（Vue3 + TS + Element Plus + Vite + ECharts + flv.js）
 │   ├── src/
-│   │   ├── api/             # 接口封装（auth / camera / violation / log / demo / warning / settings）
-│   │   ├── views/           # Login / Dashboard / monitor / demo / camera / violation / warning(+MailReportConfig) / log / screen
+│   │   ├── api/             # 接口封装（auth / camera / violation / log / demo / warning / settings / zone）
+│   │   ├── views/           # Login / Dashboard / monitor / demo / camera / zone（危险区域） / violation / warning(+MailReportConfig) / log / screen
 │   │   ├── components/screen/  # 大屏面板组件（KpiPanel / TrendPanel / LiveFeed / Alert / CameraStatus 等）
 │   │   ├── composables/     # useRealtime（SSE）/ usePolling / useScreenScale
 │   │   ├── layout/          # MainLayout（侧边菜单 + 预警铃铛）
 │   │   ├── constants/       # violations.ts（共享常量）/ screenTheme.ts（大屏配色）
 │   │   ├── styles/          # 设计系统（颜色/间距/圆角/阴影 token + Element Plus 皮肤覆写）
-│   │   ├── utils/           # request.ts（token 拦截器）/ draw.ts（canvas 叠加）/ download.ts / echarts.ts
+│   │   ├── utils/           # request.ts（token 拦截器）/ draw.ts（canvas 叠加：检测框 + 危险区）/ download.ts / echarts.ts
 │   │   └── router/          # 路由懒加载 + 登录守卫（含独立 /screen 路由）
 │   ├── public/demo-login.html  # 演示自动登录落地页（start-demo.py 使用）
 │   ├── Dockerfile / nginx.conf
@@ -202,58 +276,73 @@ yolo-safety-system/
 ├── Safety-Detection-export.py      # 原始脚本：视频导出（CPU）
 ├── Safety-Detection-export-gpu.py  # 原始脚本：视频导出（GPU）
 ├── doc/                     # 文档系列（博客教学 + 架构参考 + API 参考）
-│   └── images/screenshots/  # README 界面截图（登录/看板/监控/演示/摄像头/违规/预警/日志）
+│   └── images/screenshots/  # README 界面截图（登录/看板/监控/演示/摄像头/违规/预警/日志/危险区域/火源）
 ├── docker-compose.yml
 ├── start-local.bat          # 本地一键启动（后端 + 前端）
 ├── start-local.py           # 本地一键启动（Python 版，健康检查 + 可选推理服务）
 ├── start-demo.py            # 前端演示启动（自动登录并打开指定页面）
 └── weights/                 # 模型权重集中目录（*.pt 不入库，见 weights/README.md）
-    ├── ppe/ppe.pt           # PPE 检测模型（10 类）
-    └── fire/fire.pt         # 火源/烟雾检测模型（2 类）
+    ├── ppe/ppe.pt           # PPE 检测模型（10 类，直接输出 NO-*）
+    └── fire/fire.pt         # 火源/烟雾检测模型（2 类：smoke/fire）
 ```
 
-### Key Directories Explained
+### 关键目录说明
 
-**`backend/app/detection/`** — 演示模式的检测/判定/标注模块，与 `inference/` 同名文件**逐行一致**（双份同步纪律，见下方核心概念）。后端因独立加载模型而复制了同一套逻辑，修改一处必须同步另一处。
+**`backend/app/detection/`** — 演示模式的检测/判定/标注/区域判定模块，与 `inference/` 同名文件**逐行一致**（`detector.py` / `judge.py` / `annotate.py` / `zone.py` 双份同步）。后端因独立加载模型而复制了同一套逻辑，修改一处必须同步另一处。
 
-**`frontend/src/constants/violations.ts`** — 违规类型中文名与检测框配色的**唯一来源**。前端 6+ 个页面共用，页面内禁止重复定义；换模型时与后端 `annotate.py` 同步修改。
+**`frontend/src/constants/violations.ts`** — 违规类型中文名与检测框配色的**唯一来源**。前端多页面共用，页面内禁止重复定义；换模型时与后端 `annotate.py` 同步修改。
 
-**`deploy/mediamtx.yml`** — MediaMTX 流媒体服务配置：接收摄像头 RTSP 流（8554），转发为 FLV（8080）供浏览器播放，稳定拉流供推理服务使用。
+**`deploy/mediamtx.yml`** — MediaMTX 流媒体配置：接收摄像头 RTSP 流（8554），转发为 FLV（8080）供浏览器播放，稳定拉流供推理服务使用。
 
-## Key Concepts
+**`weights/`** — 所有模型权重集中目录，按用途分子目录（`ppe/`、`fire/`）；`*.pt` 不入库，克隆后需补放，详见 `weights/README.md`。
 
-### 1. 违规判定：direct 模式（ppe.pt）
+---
 
-ppe.pt 是"违规类模型"——直接输出 `NO-*` 违规类（`NO-Hardhat` / `NO-Mask` / `NO-Safety Vest`）。判定规则一行搞定：
+## 核心概念
+
+### 1. 违规判定：direct 模式（PPE + 火源）
+
+PPE 模型是"违规类模型"——直接输出 `NO-*` 违规类（`NO-Hardhat` / `NO-Mask` / `NO-Safety Vest`）。火源模型同理，直接输出 `fire` / `smoke`。判定规则一行搞定：
 
 ```python
 rule = {"no_helmet": "NO-Hardhat", "no_vest": "NO-Safety Vest", "no_mask": "NO-Mask"}
 # 模型输出里出现 NO-Hardhat → 判 no_helmet 违规
+fire_rule = {"fire": "fire", "smoke": "smoke"}
 ```
 
-**Why this matters:** `judge.py` 同时支持 `person_iou` 模式（正类装备模型：person + helmet，用 IoU 判断装备缺失）。换模型时要在 `inference/config.yaml` 和 `backend/app/config.py` 同时改 `judge_mode` 与 `violation_rule`。
+`judge.py` 同时支持 `person_iou` 模式（正类装备模型：person + helmet，用 IoU 判断装备缺失）。换模型时要在 `inference/config.yaml` 和 `backend/app/config.py` 同时改 `judge_mode` 与 `violation_rule`。
 
-### 2. 双份同步纪律（最容易踩的坑）
+### 2. 双模型并行（PPE + 火源）
 
-`inference/detector.py`、`judge.py`、`annotate.py` 与 `backend/app/detection/` 同名文件**逐行一致**。后端演示模式复用同一套逻辑（因独立加载模型而复制）。**改任意一处必须同步另一处**，否则正式链路与演示链路的识别/标注结果不一致。
+每个接入摄像头的 `StreamWorker` 同时加载 **PPE 检测器** 与 **火源检测器**（`fire_detector`），每帧对两者分别推理，合并检测结果与违规后统一抓拍上报；证据图同时叠加 PPE 检测框、火源橙框与危险区多边形。
 
-### 3. 三条业务链路
+### 3. 危险区域闯入（多边形 ROI）
+
+`zone.py` 提供纯几何判定：`point_in_polygon`（射线法）+ `foot_point`（取 Person 框底边中点作为脚下位置）。`stream_worker.py` 按 `camera_id` 从后端 `/api/zones` 定期拉取区域配置，每帧维护各区域"首次进入时间"，人员停留 ≥ `min_dwell_seconds` 且置信度达标才判 `zone_intrusion`。**无需新模型**。
+
+### 4. 双份同步纪律（最容易踩的坑）
+
+`inference/detector.py`、`judge.py`、`annotate.py`、`zone.py` 与 `backend/app/detection/` 同名文件**逐行一致**。后端演示模式复用同一套逻辑（因独立加载模型而复制）。**改任意一处必须同步另一处**，否则正式链路与演示链路的识别/标注结果不一致。
+
+### 5. 三条业务链路
 
 ```
-① 正式链路：RTSP 摄像头 → MediaMTX → 推理服务(每摄像头一线程) → 检测/判定/抓拍
-            → POST /api/violations/with-image → 后端入库 → 预警检查
-② 演示链路：浏览器 getUserMedia 取帧 → POST /api/demo/detect → 后端直接推理
+① 正式链路：RTSP 摄像头 → MediaMTX → 推理服务(每摄像头一线程，PPE+火源并行+区域判定)
+            → 检测/判定/抓拍 → POST /api/violations/with-image → 后端入库 → 预警检查
+② 演示链路：浏览器 getUserMedia 取帧 → POST /api/demo/detect → 后端直接推理(PPE+火源并行)
             → 违规以 camera_id=0、"临时演示" 入库（与正式链路判定逻辑一致）
 ③ 原始脚本：Safety-Detection*.py 对本地视频文件做 PPE 检测导出标注视频
 ```
 
-### 4. SQLite 时间戳陷阱
+### 6. SQLite 时间戳陷阱
 
 SQLAlchemy 的 `server_default=_func.now()` 在 SQLite 上生成 `CURRENT_TIMESTAMP`，**返回的是 UTC**，与业务层本地时间（UTC+8）比较会差 8 小时，导致预警窗口统计 / 今日统计全错。
 
 **本项目约定：** 时间戳一律用 Python 侧 `default=datetime.now`（本地时间）写入，**不要改回 `server_default`**。MySQL 的 `NOW()` 本就是本地时间，无此问题。
 
-## Common Tasks
+---
+
+## 常用任务
 
 ### 任务 1：添加一台摄像头并测试连通性
 
@@ -261,17 +350,26 @@ SQLAlchemy 的 `server_default=_func.now()` 在 SQLite 上生成 `CURRENT_TIMEST
 2. 点击「测试连接」（后端调 `/api/cameras/test`，8 秒兜底超时，返回中文结果）；
 3. 保存后开启「实时监控」页查看预览；启用摄像头后推理服务自动接入该路。
 
-**预期结果：** 摄像头状态为 `online`，监控页能播放，违规自动上报入库。
+**预期结果：** 摄像头状态为 `online`，监控页能播放，PPE / 火源违规自动上报入库。
 
-### 任务 2：新建一条预警规则
+### 任务 2：配置危险区域
+
+1. 前端「危险区域」→ 选择摄像头 → 「上传画面快照」（或「载入最近抓拍」）；
+2. 在画布上**依次点击顶点**绘制多边形（≥3 个点，自动闭合）；
+3. 右侧填写区域名称、类别（配电房/基坑/吊装区/其他）、置信度阈值（默认 0.4）、停留秒数（默认 2）；
+4. 点「保存该区域」；可继续画多个区域，列表支持启用/停用/删除。
+
+**预期结果：** 推理服务 60 秒内自动拉取该区域并开始判定；人员进入且停留达标即抓拍留痕（`zone_intrusion`）；实时监控选中该摄像头会叠加显示区域。
+
+### 任务 3：新建一条预警规则
 
 1. 前端「预警中心」→「新增规则」；
-2. 摄像头 / 违规类型**留空 = 全部**，设置阈值与时间窗口（如 60 分钟 ≥ 3 次 no_helmet）；
+2. 摄像头 / 违规类型**留空 = 全部**；违规类型下拉已含 **未戴安全帽 / 未穿马甲 / 未戴口罩 / 火源火灾 / 烟雾 / 危险区域闯入**；设置阈值与时间窗口（如 60 分钟 ≥ 3 次）；
 3. 违规频发触发后，顶栏铃铛出现未读徽标 + 弹窗提醒。
 
 **预期结果：** 10 分钟冷却防刷屏，同一 camera+type 冷却期内只生成一条事件，事件里记录窗口内累计次数。
 
-### 任务 3：导出 Excel / PDF 报告
+### 任务 4：导出 Excel / PDF 报告
 
 - **Excel**：前端「安全日志」页筛选条件 → 点「导出 Excel」，得到内嵌违规图片缩略图的中文名文件；
 - **PDF 下载**：数据看板 → 「导出 / 发送报告」下拉 → 下载安全周报 / 月报（reportlab 生成，中文无需系统字体）；
@@ -279,65 +377,69 @@ SQLAlchemy 的 `server_default=_func.now()` 在 SQLite 上生成 `CURRENT_TIMEST
 
 **预期结果：** 文件名形如 `安全日志_2026-11-01_2026-11-06.xlsx`；PDF 含统计摘要、趋势图、类型分布、点位排行、前 50 条明细。
 
-### 任务 4：配置预警邮件与日报/周报定时推送
+### 任务 5：配置预警邮件与日报/周报定时推送
 
 1. 进入「预警中心 → 预警配置」页签；
 2. 填写 SMTP（服务器/端口/加密方式/账号/授权码/收件人），点「保存配置」→「发送测试邮件」验证；
 3. 在「报告邮件推送」里开启预警邮件、设置日报/周报时间与收件人并保存；
 4. 可点「发送日报 / 周报 / 月报」立即验证，或等待后端定时任务自动发送（服务晚启动也会当天补发）。
 
-**预期结果：** 收到带 PDF 附件的报告邮件；预警触发时收到含抓拍图附件的预警邮件。
+**预期结果：** 收到带 PDF 附件的报告邮件；预警触发时收到含抓拍图（含火源/危险区证据图）附件的预警邮件。
 
-### 任务 5：换模型（5 处清单）
+### 任务 6：换模型（5 处清单）
 
 > ⚠️ 换模型是最需要谨慎的操作。模型类别渗透到配置文件、标注配色、前端画框、原始脚本，**一处改动五处响应**：
 
-| # | 位置                                                                              | 改什么                                                                           |
-| - | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 1 | `inference/config.yaml` / `config.local.yaml`                                 | `class_names`（与模型类别顺序一致）、`violation_rule`、`judge_mode`        |
-| 2 | `backend/app/config.py`                                                         | `VIOLATION_RULE`、`JUDGE_MODE`、`DEMO_MODEL_PATH`、`DEMO_CONF_THRESHOLD` |
-| 3 | `backend/app/detection/annotate.py`（**同步** `inference/annotate.py`） | `NEGATIVE_CLASSES` / `POSITIVE_CLASSES` + `VIOLATION_LABELS`               |
-| 4 | `frontend/src/constants/violations.ts`                                          | `VIOLATION_TYPE_MAP`、`NEGATIVE_CLASSES`、`POSITIVE_CLASSES`               |
-| 5 | 根目录`Safety-Detection*.py`                                                    | 硬编码`classNames` 列表                                                        |
+| # | 位置 | 改什么 |
+| - | --- | --- |
+| 1 | `inference/config.yaml` / `config.local.yaml` | `class_names`（与模型类别顺序一致）、`violation_rule`、`judge_mode`（火源模型另改 `fire_class_names` / `fire_violation_rule`） |
+| 2 | `backend/app/config.py` | `VIOLATION_RULE`、`JUDGE_MODE`、`DEMO_MODEL_PATH`、`DEMO_CONF_THRESHOLD`（火源：`FIRE_VIOLATION_RULE` / `DEMO_FIRE_MODEL_PATH`） |
+| 3 | `backend/app/detection/annotate.py`（**同步** `inference/annotate.py`） | `NEGATIVE_CLASSES` / `POSITIVE_CLASSES` / `FIRE_CLASSES` + `VIOLATION_LABELS` |
+| 4 | `frontend/src/constants/violations.ts` | `VIOLATION_TYPE_MAP`、`NEGATIVE_CLASSES`、`POSITIVE_CLASSES`、`FIRE_CLASSES` |
+| 5 | 根目录 `Safety-Detection*.py` | 硬编码 `classNames` 列表 |
 
 **验证方法：** `YOLO(path).names` 打印模型实际类别字典，与 `class_names` 配置比对。
 
-### 任务 6：现场演示（笔记本摄像头，无需 RTSP）
+### 任务 7：现场演示（笔记本摄像头，无需 RTSP）
 
 1. 登录后台 →「临时演示」→「环境自检」（摄像头权限 / 后端连通 / 模型就绪，避免现场翻车）；
 2. 选摄像头 / 画质 →「开始演示」（首次显示"模型加载中"，约 10–30 秒，后端启动时已预热）；
-3. 调节灵敏度滑块、切换"只看违规"、全屏演示；违规自动抓拍，展示统计 + 抓拍时间线；
+3. 调节灵敏度滑块、切换"只看违规"、全屏演示；违规自动抓拍，展示统计 + 抓拍时间线；对准明火/烟雾可演示火源检测；
 4. 演示记录出现在「违规记录」页，来源为"临时演示"（camera_id=0）。
 
-**预期结果：** 演示页与正式链路判定逻辑完全一致，违规记录含标注证据图。
+**预期结果：** 演示页与正式链路判定逻辑完全一致（PPE + 火源双模型），违规记录含标注证据图。
 
-## Configuration
+---
 
-### Environment Variables
+## 配置说明
 
-| 变量                                                                                                                                                  | 控制什么                                            | 默认值                              | 使用环境                                              |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------- | ----------------------------------------------------- |
-| `DATABASE_URL`                                                                                                                                      | 数据库连接                                          | `sqlite:///./yolo_safety.db`      | 后端（Docker 覆盖为 MySQL）                           |
-| `JWT_SECRET` / `JWT_EXPIRE_MINUTES`                                                                                                               | 登录令牌                                            | `yolo-safety-secret...` / 720     | 后端                                                  |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD`                                                                                                               | 默认账号                                            | `admin` / `admin123`            | 后端                                                  |
-| `UPLOAD_DIR`                                                                                                                                        | 抓拍图片目录                                        | `./images`                        | 后端（Docker 覆盖为`/data/images`）                 |
-| `DEMO_MODEL_PATH` / `DEMO_CONF_THRESHOLD` / `DEMO_DEVICE`                                                                                       | 演示模型                                            | `/app/weights/ppe/ppe.pt` / 0.5 / cpu | 后端                                                  |
-| `DEMO_FIRE_ENABLED` / `DEMO_FIRE_MODEL_PATH` / `DEMO_FIRE_CONF_THRESHOLD`                                                                        | 火源/烟雾检测（第二模型，与 PPE 并行）             | `true` / `/app/weights/fire/fire.pt` / 0.4 | 后端（`backend/.env`）                              |
-| `VITE_MEDIAMTX_BASE`                                                                                                                                | 监控页 FLV 地址前缀                                 | `http://localhost:8080`           | 前端`.env`                                          |
-| `CONFIG_PATH`                                                                                                                                       | 推理服务配置文件                                    | -                                   | 推理服务（本地用`inference/config.local.yaml`）     |
-| `MAIL_ENABLED` / `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_SSL` / `SMTP_STARTTLS` / `MAIL_FROM` / `MAIL_TO` | 预警邮件 SMTP（初始默认值，网页「预警配置」可覆盖） | 空（自动跳过发送）                  | 后端`backend/.env`，模板见 `backend/.env.example` |
+### 环境变量
 
-### Configuration Files
+| 变量 | 控制什么 | 默认值 | 使用环境 |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | 数据库连接 | `sqlite:///./yolo_safety.db` | 后端（Docker 覆盖为 MySQL） |
+| `JWT_SECRET` / `JWT_EXPIRE_MINUTES` | 登录令牌 | `yolo-safety-secret...` / 720 | 后端 |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 默认账号 | `admin` / `admin123` | 后端 |
+| `UPLOAD_DIR` | 抓拍图片目录 | `./images` | 后端（Docker 覆盖为 `/data/images`） |
+| `DEMO_MODEL_PATH` / `DEMO_CONF_THRESHOLD` / `DEMO_DEVICE` | 演示 PPE 模型 | `/app/weights/ppe/ppe.pt` / 0.5 / cpu | 后端 |
+| `DEMO_FIRE_ENABLED` / `DEMO_FIRE_MODEL_PATH` / `DEMO_FIRE_CONF_THRESHOLD` | 火源/烟雾检测（第二模型，与 PPE 并行） | `true` / `/app/weights/fire/fire.pt` / 0.4 | 后端（`backend/.env`） |
+| `VITE_MEDIAMTX_BASE` | 监控页 FLV 地址前缀 | `http://localhost:8080` | 前端 `.env` |
+| `CONFIG_PATH` | 推理服务配置文件 | - | 推理服务（本地用 `inference/config.local.yaml`） |
+| `MAIL_ENABLED` / `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_SSL` / `SMTP_STARTTLS` / `MAIL_FROM` / `MAIL_TO` | 预警邮件 SMTP（初始默认值，网页「预警配置」可覆盖） | 空（自动跳过发送） | 后端 `backend/.env`，模板见 `backend/.env.example` |
 
-**`inference/config.yaml` / `config.local.yaml`** — 推理服务的 `class_names`、`violation_rule`、`judge_mode`、`model_path`、`device`、`backend_url`。改模型/后端地址时修改。
+### 配置文件
 
-**`backend/app/config.py`** — 后端全部配置的"唯一来源"（pydantic-settings，支持 `.env` 覆盖）。演示模式相关字段在此。
+**`inference/config.yaml` / `config.local.yaml`** — 推理服务配置：`class_names`、`violation_rule`、`judge_mode`、`model_path`、`device`、`backend_url`；**火源相关** `fire_enabled`、`fire_model_path`、`fire_class_names`、`fire_violation_rule`、`fire_conf_threshold`；**危险区域** `zones_refresh_seconds`（区域拉取间隔）。
+
+**`backend/app/config.py`** — 后端全部配置的"唯一来源"（pydantic-settings，支持 `.env` 覆盖）。演示 PPE 模式与火源模型（`DEMO_FIRE_*`、`FIRE_VIOLATION_RULE`）字段在此。
 
 **`frontend/.env`** — 监控页 MediaMTX 播放地址前缀（模板见 `.env.example`）。
 
 **`backend/.env`** — 预警邮件 SMTP 等后端环境变量（模板见 `backend/.env.example`）。也可完全不配，登录后台「预警中心 → 预警配置」在网页上填写，配置存入 `system_settings` 表并优先生效。
 
-## Development
+---
+
+## 开发与质量关卡
 
 ### 启动顺序与依赖
 
@@ -355,15 +457,29 @@ npm run build            # ② Vite 生产构建（打包通过 = 语法/导入/
 
 ### 文档纪律
 
-`CLAUDE.md` 是项目约定的"唯一记忆"：ppe.pt 适配、双份同步、SQLite 陷阱、常用命令都写在其中，AI 每次会话自动加载。改动影响约定时务必同步更新。
+`CLAUDE.md` 是项目约定的"唯一记忆"：ppe.pt 适配、火源检测、危险区域、双份同步、SQLite 陷阱、常用命令都写在其中，AI 每次会话自动加载。改动影响约定时务必同步更新。
 
-## Troubleshooting
+---
+
+## 常见问题排查
 
 ### 演示接口报 503「未找到演示模型」
 
 **问题：** `/api/demo/detect` 返回 503，`/api/demo/status` 的 `model_path` 为 null。
 
 **解决：** 模型 `ppe.pt` 缺失。将模型放入 `weights/ppe/ppe.pt`（火源放 `weights/fire/fire.pt`，详见 `weights/README.md`），重启后端。
+
+### 火源检测不生效
+
+**问题：** 对准火焰/烟雾没有橙框。
+
+**解决：** ① 确认 `weights/fire/fire.pt` 存在；② 确认 `DEMO_FIRE_ENABLED=true`（后端）/ `fire_enabled: true`（推理服务）；③ `/api/demo/status` 看 `fire_model_loaded` 是否为 true；④ 火源置信度阈值较高时可临时调低 `fire_conf_threshold`。
+
+### 危险区域闯入不触发
+
+**问题：** 人员明明在危险区里却不报警。
+
+**解决：** ① 确认该摄像头已在「危险区域」页配置了**启用**的区域（`enabled=true`）；② 人员需**停留 ≥ min_dwell_seconds**（默认 2 秒）才触发，路过不算；③ 区域太小或人员落脚点坐标（框底中点）不在多边形内会漏判，建议区域画得稍大；④ 推理服务每 `zones_refresh_seconds`（默认 60s）刷新区域，改完配置等一会或重启推理服务。
 
 ### 推理服务启动即退出或报错
 
@@ -377,15 +493,23 @@ npm run build            # ② Vite 生产构建（打包通过 = 语法/导入/
 
 **解决：** ① 确认 MediaMTX 已启动（`deploy/mediamtx.yml`，端口 8080/8554）；② 确认 `frontend/.env` 的 `VITE_MEDIAMTX_BASE` 与部署地址一致；③ 用「测试连接」验证 RTSP 地址可达；④ 浏览器需 HTTPS 或 localhost。
 
-### 演示首次检测卡 10~30 秒**问题：** 首次点"开始演示"长时间无画面。
+### 演示首次检测卡 10~30 秒
 
-**解决：** 首次请求要加载 YOLO 模型，属正常。后端启动时已有后台线程预热（`_warmup_demo_model`）；前端请求超时已放宽到 60s。若仍超时，检查 `ppe.pt` 是否存在。
+**问题：** 首次点"开始演示"长时间无画面。
+
+**解决：** 首次请求要加载 YOLO 模型，属正常。后端启动时已有后台线程预热（`_warmup_demo_model`，PPE + 火源两模型）；前端请求超时已放宽到 60s。若仍超时，检查 `weights/ppe/ppe.pt`、`weights/fire/fire.pt` 是否存在。
 
 ### 预警中心事件不触发 / 窗口统计为 0
 
 **问题：** 规则明明达标但事件不生成。
 
 **解决：** 先查库看 `violations.created_at` 是否比本地时间**差 8 小时**（SQLite `CURRENT_TIMESTAMP` 存 UTC）。如果是：改回 Python 侧 `default=datetime.now` 写入新数据，并对存量数据执行一次性 `+8 hours` 迁移（见第 9 篇文档）。**不要改回 `server_default=_func.now()`**。
+
+### 预警下拉菜单里没有「火源火灾 / 烟雾 / 危险区域闯入」
+
+**问题：** 预警规则新增时看不到新类型。
+
+**解决：** 前端改动后浏览器可能缓存旧 JS，按 **Ctrl+F5** 强制刷新；确认前端 dev server 已重启。类型来自 `frontend/src/constants/violations.ts` 的 `VIOLATION_TYPE_MAP`，后端 `schemas.py` 的 `violation_type` 为自由字符串，无白名单限制。
 
 ### 改了标注/配色但前端颜色没变
 
@@ -411,12 +535,15 @@ npm run build            # ② Vite 生产构建（打包通过 = 语法/导入/
 
 **解决：** ① 确认后端版本包含 `/api/realtime/stream`；② 若经 nginx，需已按 `frontend/nginx.conf` 关闭 `proxy_buffering`、使用 HTTP/1.1 长连接；③ 检查浏览器 Network 中 SSE 请求是否 401（token 失效请重新登录）。
 
-## Additional Documentation
+---
+
+## 更多文档
 
 - [doc/README.md](doc/README.md) — 系列博客导读（11 篇，面向智能建造大学生）
 - [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) — 系统架构参考（技术栈决策、模块依赖、扩展点）
-- [doc/API接口参考.md](doc/API接口参考.md) — 全部后端接口参考（含 curl 示例、SSE、邮件与报告配置接口）
+- [doc/API接口参考.md](doc/API接口参考.md) — 全部后端接口参考（含 curl 示例、SSE、邮件与报告配置、危险区域接口）
 - [CLAUDE.md](CLAUDE.md) — 项目约定文档（AI 与人的共同记忆，务必阅读）
+- [weights/README.md](weights/README.md) — 模型权重集中目录说明
 - [backend/.env.example](backend/.env.example) — 后端环境变量模板（邮件 SMTP 等）
 
 ## License
