@@ -103,7 +103,7 @@ class Settings(BaseSettings):
         "no_mask": "NO-Mask",
     }
     JUDGE_MODE: str = "direct"
-    DEMO_MODEL_PATH: str = "/app/weights/ppe.pt"       # Docker 挂载路径
+    DEMO_MODEL_PATH: str = "/app/weights/ppe/ppe.pt"   # Docker 挂载路径
     DEMO_CONF_THRESHOLD: float = 0.5
     DEMO_DEVICE: str = "cpu"
 ```

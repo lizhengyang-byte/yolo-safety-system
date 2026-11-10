@@ -1,11 +1,11 @@
 # YOLO 推理服务配置
 # 已适配当前项目：使用根目录的 ppe.pt（10 类，直接输出 NO-* 违规类）
-# 类别顺序已与 ppe.pt 实际训练类别核对一致（见 inference/weights/README）
+# 类别顺序已与 ppe.pt 实际训练类别核对一致（见 weights/README.md）
 
 backend_url: "http://backend:8000"
 
-# 模型权重路径（ppe.pt 已复制到 inference/weights/）
-model_path: "weights/ppe.pt"
+# 模型权重路径（集中管理于仓库根目录 weights/，docker 挂载到 /app/weights/）
+model_path: "weights/ppe/ppe.pt"
 
 # 类别索引 -> 名称（与 ppe.pt 的 model.names 一致，勿改顺序）
 class_names:
@@ -33,6 +33,21 @@ violation_rule:
 
 # 检测置信度阈值
 conf_threshold: 0.5
+
+# ---------- 火源火灾检测（第二模型，与 PPE 模型并行推理）----------
+# 全部启用摄像头同时进行 PPE 与火源检测；关闭可设 fire_enabled: false
+fire_enabled: true
+# 火源/烟雾模型权重（YOLOv8n，2 类：0=smoke 1=fire）
+fire_model_path: "weights/fire/fire.pt"
+fire_class_names:
+  0: smoke
+  1: fire
+# 火源违规：出现 fire / smoke 即判定违规（direct 模式）
+fire_violation_rule:
+  fire: fire
+  smoke: smoke
+# 火焰/烟雾置信度阈值（烟雾易误报，可略高）
+fire_conf_threshold: 0.4
 
 # 违规抓拍去重：同一摄像头同一类型在此秒数内只上报一次，避免刷屏
 dedup_seconds: 30

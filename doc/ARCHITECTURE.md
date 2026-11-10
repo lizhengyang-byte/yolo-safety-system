@@ -329,7 +329,7 @@ frontend/
 **构建产物：** 前端 `npm run build` → dist，nginx 托管并反代后端；后端/inference 用 `python:3.12-slim` + requirements.txt（非 pyproject）。
 
 **部署步骤（Docker）：**
-1. `inference/weights/ppe.pt` 存在（volume 挂载）；
+1. `weights/ppe/ppe.pt` 存在（volume 挂载）；
 2. `docker compose up -d --build`；
 3. 浏览器访问 `http://localhost`，后端 `/docs`。
 

@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     # 抓拍图片存储目录（本地默认 backend/images/，docker-compose 覆盖为 /data/images）
     UPLOAD_DIR: str = "./images"
     # 允许的违规类型（系统级 key，前端展示中文）
-    VIOLATION_TYPES: list = ["no_helmet", "no_vest", "no_mask"]
+    VIOLATION_TYPES: list = ["no_helmet", "no_vest", "no_mask", "fire", "smoke"]
     # 违规判定规则：违规类型 -> 触发违规的类别名（与 ppe.pt 类别一致）
+    # 火源/烟雾由独立 fire.pt 模型检测（见下方 FIRE_* 配置），同样走 direct 判定
     VIOLATION_RULE: dict = {
         "no_helmet": "NO-Hardhat",
         "no_vest": "NO-Safety Vest",
@@ -38,6 +39,17 @@ class Settings(BaseSettings):
     DEMO_MODEL_PATH: str = "/app/weights/ppe.pt"
     DEMO_CONF_THRESHOLD: float = 0.5
     DEMO_DEVICE: str = "cpu"
+
+    # ---------- 火源火灾检测（第二模型，与 PPE 并行；演示模式与正式链路一致）----------
+    DEMO_FIRE_ENABLED: bool = True
+    # 火源/烟雾模型权重（YOLOv8n，2 类：0=smoke 1=fire），docker 挂载 /app/weights/fire.pt
+    DEMO_FIRE_MODEL_PATH: str = "/app/weights/fire.pt"
+    DEMO_FIRE_CONF_THRESHOLD: float = 0.4
+    # 火源违规判定规则：出现 fire / smoke 即违规（direct）
+    FIRE_VIOLATION_RULE: dict = {
+        "fire": "fire",
+        "smoke": "smoke",
+    }
 
     # ---------- 预警邮件通知（SMTP）----------
     # 未配置 SMTP_HOST / MAIL_TO 时自动跳过发送，不影响系统运行

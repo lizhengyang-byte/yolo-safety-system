@@ -77,7 +77,11 @@
             fit="cover"
             style="width: 80px; height: 50px; border-radius: 4px"
             @click.stop="openDetail(row)"
-          />
+          >
+            <template #error>
+              <div class="img-fallback-sm">无图</div>
+            </template>
+          </el-image>
           <span v-else>-</span>
         </template>
       </el-table-column>
@@ -101,7 +105,11 @@
           style="width: 100%; max-height: 320px; border-radius: 6px; background: #000"
           :preview-src-list="detail.anno_url ? [detail.anno_url, detail.image_url] : [detail.image_url]"
           preview-teleported
-        />
+        >
+          <template #error>
+            <div class="img-fallback-lg">图片文件不存在或已删除</div>
+          </template>
+        </el-image>
         <el-descriptions :column="2" border style="margin-top: 16px">
           <el-descriptions-item label="摄像头">{{ detail.camera_name || "未命名" }}</el-descriptions-item>
           <el-descriptions-item label="违规类型">
@@ -148,8 +156,8 @@ const detailTitle = computed(() => {
 });
 
 function tagType(type: string) {
-  if (type === "no_helmet") return "danger";
-  if (type === "no_vest") return "warning";
+  if (type === "no_helmet" || type === "fire") return "danger";
+  if (type === "no_vest" || type === "smoke") return "warning";
   return "info";
 }
 
@@ -252,5 +260,26 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+}
+.img-fallback-sm {
+  width: 80px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #909399;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+.img-fallback-lg {
+  width: 100%;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  background: #f5f7fa;
+  border-radius: 6px;
 }
 </style>

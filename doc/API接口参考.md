@@ -410,7 +410,7 @@ curl -X GET "http://localhost:8000/api/logs/export?violation_type=no_helmet&star
 ```json
 {
   "model_loaded": false,
-  "model_path": "inference/weights/ppe.pt",
+  "model_path": "weights/ppe/ppe.pt",
   "device": "cpu",
   "conf_threshold": 0.5
 }

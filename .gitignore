@@ -6,8 +6,12 @@ __pycache__/
 .venv/
 venv/
 
-# 模型权重（体积大，不入库；根目录 ppe.pt 与 inference/weights/ppe.pt）
+# 模型权重（体积大，默认不入库；集中存放于 weights/ 按用途分子目录）
 *.pt
+# 例外：weights/ 集中目录下的权重允许入库（按用户要求随仓库分发）
+!weights/
+!weights/**/
+!weights/**/*.pt
 
 # 抓拍图片与本地数据库（后端运行时生成）
 backend/images/
@@ -31,3 +35,6 @@ videos/
 .vscode/
 .idea/
 .DS_Store
+
+# 本地孤儿记录备份（运维产物，不入库）
+backend/orphan_violations_backup_*.json

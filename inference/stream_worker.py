@@ -32,6 +32,22 @@ class StreamWorker:
         )
         self.rule = config.get("violation_rule", {})
         self.judge_mode = config.get("judge_mode", "direct")
+
+        # ---------- 火源/烟雾检测（第二模型，与 PPE 并行；每个摄像头都检测）----------
+        self.fire_enabled = config.get("fire_enabled", False)
+        self.fire_detector = None
+        self.fire_rule = config.get("fire_violation_rule", {})
+        if self.fire_enabled and config.get("fire_model_path"):
+            try:
+                self.fire_detector = YoloDetector(
+                    model_path=config["fire_model_path"],
+                    conf_threshold=config.get("fire_conf_threshold", 0.4),
+                    device=config.get("device", "cpu"),
+                )
+            except Exception as e:
+                print(f"[{camera.get('name', camera.get('id'))}] 火源模型加载失败，仅运行 PPE 检测: {e}")
+                self.fire_detector = None
+
         self.dedup_seconds = config.get("dedup_seconds", 30)
         self.infer_every = config.get("infer_every_n_frames", 5)
         self.save_dir = config.get("save_dir", "/data/images")
@@ -160,20 +176,38 @@ class StreamWorker:
                 print(f"[{self.camera['name']}] 检测异常: {e}")
                 continue
 
-            if not detections:
-                continue
+            # 火源/烟雾检测（第二模型并行，失败不影响 PPE 链路）
+            fire_detections = []
+            if self.fire_detector is not None:
+                try:
+                    fire_detections = self.fire_detector.predict(frame)
+                except Exception as e:
+                    print(f"[{self.camera['name']}] 火源检测异常: {e}")
+
+            # 合并两类检测结果用于标注与明细
+            all_detections = detections + fire_detections
 
             violations = judge_violations(
                 detections, self.rule, mode=self.judge_mode
             )
+            if self.fire_detector is not None and self.fire_rule:
+                violations |= judge_violations(
+                    fire_detections, self.fire_rule, mode="direct"
+                )
+
+            if not violations:
+                continue
+
+            # 违规类型 -> 触发该类别的类别名（PPE 与火源规则合并）
+            trigger_by_vio = {**self.rule, **self.fire_rule}
             # 每条违规的置信度：触发该违规的检测框最大置信度（direct 模式）
             for vio in violations:
-                trigger_cls = self.rule.get(vio, "")
+                trigger_cls = trigger_by_vio.get(vio, "")
                 conf = max(
-                    (d.conf for d in detections if d.cls_name == trigger_cls),
+                    (d.conf for d in all_detections if d.cls_name == trigger_cls),
                     default=0.0,
                 )
-                self._report(vio, frame, conf, detections)
+                self._report(vio, frame, conf, all_detections)
 
     def stop(self):
         self._running = False

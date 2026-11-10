@@ -33,6 +33,11 @@ router = APIRouter()
 _detector: YoloDetector | None = None
 _detector_lock = threading.Lock()
 
+# 火源/烟雾检测器单例（与 PPE 并行；全部摄像头/演示页同时检测）
+_fire_detector: YoloDetector | None = None
+_fire_detector_lock = threading.Lock()
+_fire_disabled = False
+
 
 def _find_model_path() -> str:
     """定位演示模型（ppe.pt）：优先环境变量配置，其次按常见相对路径搜索。
@@ -41,11 +46,11 @@ def _find_model_path() -> str:
     """
     candidates = [
         settings.DEMO_MODEL_PATH,
+        "weights/ppe/ppe.pt",
+        "../weights/ppe/ppe.pt",
         "weights/ppe.pt",
         "../inference/weights/ppe.pt",
         "inference/weights/ppe.pt",
-        "yolo-safety-system/inference/weights/ppe.pt",
-        "../ppe.pt",
         "ppe.pt",
     ]
     for c in candidates:
@@ -65,7 +70,7 @@ def get_detector() -> YoloDetector:
                         status_code=503,
                         detail=(
                             "未找到演示模型 ppe.pt，请将模型放入 "
-                            f"{settings.DEMO_MODEL_PATH} 或仓库内 inference/weights/ 目录后重启后端"
+                            f"{settings.DEMO_MODEL_PATH} 或仓库内 weights/ppe/ 目录后重启后端"
                         ),
                     )
                 _detector = YoloDetector(
@@ -76,15 +81,64 @@ def get_detector() -> YoloDetector:
     return _detector
 
 
+def _find_fire_model_path() -> str:
+    """定位火源/烟雾演示模型（fire.pt）：优先环境变量配置，其次按常见相对路径搜索。"""
+    candidates = [
+        settings.DEMO_FIRE_MODEL_PATH,
+        "weights/fire/fire.pt",
+        "../weights/fire/fire.pt",
+        "weights/fire.pt",
+        "../inference/weights/fire.pt",
+        "inference/weights/fire.pt",
+        "fire.pt",
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return settings.DEMO_FIRE_MODEL_PATH
+
+
+def get_fire_detector() -> YoloDetector | None:
+    """懒加载火源/烟雾检测器；未启用或模型缺失时返回 None（仅运行 PPE 检测）。"""
+    global _fire_detector, _fire_disabled
+    if not settings.DEMO_FIRE_ENABLED or _fire_disabled:
+        return None
+    if _fire_detector is None:
+        with _fire_detector_lock:
+            if _fire_detector is None:
+                path = _find_fire_model_path()
+                if not os.path.exists(path):
+                    # 模型缺失不阻断主流程，仅记录并禁用火源检测
+                    _fire_disabled = True
+                    print(f"[demo] 未找到火源模型 fire.pt（{path}），仅运行 PPE 检测")
+                    return None
+                try:
+                    _fire_detector = YoloDetector(
+                        model_path=path,
+                        conf_threshold=settings.DEMO_FIRE_CONF_THRESHOLD,
+                        device=settings.DEMO_DEVICE,
+                    )
+                except Exception as e:
+                    _fire_disabled = True
+                    print(f"[demo] 火源模型加载失败，仅运行 PPE 检测: {e}")
+                    return None
+    return _fire_detector
+
+
 @router.get("/status")
 def demo_status():
     """演示环境状态：模型是否已加载 / 模型路径 / 设备 / 默认阈值（环境自检用）"""
     path = _find_model_path()
+    fire_path = _find_fire_model_path()
     return {
         "model_loaded": _detector is not None,
         "model_path": path if os.path.exists(path) else None,
         "device": settings.DEMO_DEVICE,
         "conf_threshold": settings.DEMO_CONF_THRESHOLD,
+        "fire_enabled": settings.DEMO_FIRE_ENABLED,
+        "fire_model_loaded": _fire_detector is not None,
+        "fire_model_path": fire_path if os.path.exists(fire_path) else None,
+        "fire_conf_threshold": settings.DEMO_FIRE_CONF_THRESHOLD,
     }
 
 
@@ -115,9 +169,26 @@ async def demo_detect(
     # 同步推理放入线程池，避免阻塞事件循环（并发时登录/心跳等接口仍可响应）
     detections = await run_in_threadpool(detector.predict, img, conf or None)
 
+    # 火源/烟雾检测（第二模型并行；失败不影响 PPE 检测）
+    fire_detector = get_fire_detector()
+    fire_detections = []
+    if fire_detector is not None:
+        try:
+            fire_detections = await run_in_threadpool(
+                fire_detector.predict, img, None
+            )
+        except Exception as e:
+            print(f"[demo] 火源检测异常: {e}")
+
+    all_detections = detections + fire_detections
+
     violations = judge_violations(
         detections, settings.VIOLATION_RULE, mode=settings.JUDGE_MODE
     )
+    if fire_detections:
+        violations |= judge_violations(
+            fire_detections, settings.FIRE_VIOLATION_RULE, mode="direct"
+        )
 
     result = {
         "detections": [
@@ -127,7 +198,7 @@ async def demo_detect(
                 "conf": round(d.conf, 3),
                 "box": [round(x, 1) for x in d.box],
             }
-            for d in detections
+            for d in all_detections
         ],
         "violations": sorted(violations),
         "snapshot_url": None,
@@ -144,15 +215,16 @@ async def demo_detect(
     path = os.path.join(settings.UPLOAD_DIR, fname)
     anno_path = os.path.join(settings.UPLOAD_DIR, anno_fname)
     cv2.imwrite(path, img)
-    anno_img = draw_annotations(img, detections, sorted(violations))
+    anno_img = draw_annotations(img, all_detections, sorted(violations))
     cv2.imwrite(anno_path, anno_img)
 
     # 主违规类型取排序后第一个，保持与正式记录单值类型一致；
-    # 置信度取触发违规的检测框（如 NO-Hardhat）的最大置信度
+    # 置信度取触发违规的检测框（如 NO-Hardhat / fire）的最大置信度
+    all_rule = {**settings.VIOLATION_RULE, **settings.FIRE_VIOLATION_RULE}
     trigger_classes = {
-        settings.VIOLATION_RULE[v] for v in violations if v in settings.VIOLATION_RULE
+        all_rule[v] for v in violations if v in all_rule
     }
-    vio_conf = [d.conf for d in detections if d.cls_name in trigger_classes]
+    vio_conf = [d.conf for d in all_detections if d.cls_name in trigger_classes]
     v = Violation(
         camera_id=0,
         camera_name="临时演示",

@@ -64,8 +64,8 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 
 ### 三条业务链路
 
-1. **正式链路**：`inference/main.py` 从后端拉取启用摄像头列表，每摄像头一个 `StreamWorker` 线程（`stream_worker.py`）。循环拉流 → 每 N 帧检测 → `judge_violations` 判定 → 命中时去重（`dedup_seconds`）保存图片并 multipart 上报后端。无启用摄像头时服务直接退出。
-2. **临时演示链路**：前端 `views/demo/index.vue` 用 `getUserMedia` 取帧，每 500ms POST `/api/demo/detect`（`routers/demo.py`），后端直接加载模型推理（懒加载单例 + 启动预热线程），违规时以 `camera_id=0`、`camera_name="临时演示"` 入库。流程与正式链路判定逻辑一致。
+1. **正式链路**：`inference/main.py` 从后端拉取启用摄像头列表，每摄像头一个 `StreamWorker` 线程（`stream_worker.py`）。循环拉流 → 每 N 帧检测 → `judge_violations` 判定 → 命中时去重（`dedup_seconds`）保存图片并 multipart 上报后端。无启用摄像头时服务直接退出。**每个摄像头的 worker 同时并行运行 PPE 模型与火源/烟雾模型**（见下「火源火灾检测」）。
+2. **临时演示链路**：前端 `views/demo/index.vue` 用 `getUserMedia` 取帧，每 500ms POST `/api/demo/detect`（`routers/demo.py`），后端直接加载模型推理（懒加载单例 + 启动预热线程），违规时以 `camera_id=0`、`camera_name="临时演示"` 入库。流程与正式链路判定逻辑一致（同样 PPE + 火源双模型并行）。
 3. **原始脚本**：根目录三个 `Safety-Detection*.py`，独立于系统，仅做本地视频标注导出。
 
 ### 关键：检测/判定/标注代码刻意双份、必须同步
@@ -108,6 +108,22 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 - `direct`（默认，适配 ppe.pt）：模型直接输出 `NO-*` 违规类，`rule: {"no_helmet": "NO-Hardhat", ...}`，出现即违规。
 - `person_iou`（正类装备模型）：`rule: {"no_helmet": "helmet", ...}`，对每个 `person` 与装备框 IoU < 阈值判缺失。
 
+### 火源火灾检测（第二模型，与 PPE 并行；全部摄像头同时检测）
+
+系统在 PPE 检测基础上**并行运行独立的火源/烟雾 YOLO 模型**（`fire.pt`，2 类：`0=smoke` `1=fire`，YOLOv8n）。每个接入了的摄像头（正式链路）与演示页每一帧（演示链路）都**同时**做 PPE 与火源检测，违规类型新增 `fire`（火源火灾）/ `smoke`（烟雾），走 `direct` 判定（出现即违规），并复用现有抓拍/入库/预警/SSE/看板/大屏全链路：
+
+| 位置 | 火源相关配置 |
+|---|---|
+| `inference/config.yaml` / `config.local.yaml` | `fire_enabled`、`fire_model_path`、`fire_class_names`、`fire_violation_rule`（`fire:fire`/`smoke:smoke`）、`fire_conf_threshold` |
+| `backend/app/config.py` | `DEMO_FIRE_ENABLED`、`DEMO_FIRE_MODEL_PATH`、`DEMO_FIRE_CONF_THRESHOLD`、`FIRE_VIOLATION_RULE`；`VIOLATION_TYPES`/`VIOLATION_RULE` 已含 `fire`/`smoke` |
+| `inference/stream_worker.py` | 每 worker 额外加载 `fire_detector`，与 PPE `detector` 并行 predict 后合并检测结果与违规 |
+| `backend/app/routers/demo.py` | `get_fire_detector()` 懒加载第二检测器，`/api/demo/detect` 合并两模型结果 |
+| `backend/app/detection/annotate.py`（与 inference 同步） | `FIRE_CLASSES`（橙色框 `ORANGE`）、`VIOLATION_LABELS` 加 `fire/smoke` |
+| `frontend/src/constants/violations.ts` | `FIRE_CLASSES`（橙 `#ff7d00`）、`VIOLATION_TYPE_MAP` 加 `fire/smoke` |
+| `frontend/src/utils/draw.ts` | 画布叠加：火源/烟雾橙色框，`onlyViolations` 也包含 fire/smoke |
+
+火源模型权重 `weights/fire/fire.pt`（约 6 MB，来自公开 HF 模型 `rabahdev/fire-smoke-yolov8n`）。所有模型权重集中存放于仓库根目录 `weights/`（按用途分子目录：`weights/ppe/ppe.pt`、`weights/fire/fire.pt`，见 `weights/README.md`）。`*.pt` 不入库，克隆后需补放。docker 中 backend 与 inference 共用 `./weights:/app/weights` 挂载，`/app/weights/ppe/ppe.pt`、`/app/weights/fire/fire.pt` 自动可用。
+
 ### 模型类别与违规配置分布在多处（改模型时都要改）
 
 | 位置 | 内容 |
@@ -120,7 +136,7 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 | 根目录 `Safety-Detection*.py` | 硬编码 `classNames` 列表 |
 | `frontend/.env` | `VITE_MEDIAMTX_BASE`（MediaMTX FLV 地址前缀，默认 `http://localhost:8080`，见 `.env.example`） |
 
-后端默认配置：`JUDGE_MODE=direct`、SQLite、admin/admin123（硬编码在 `config.py`）、抓拍目录 `./images`（相对 backend 启动目录）。演示模型自动按候选路径搜索 ppe.pt（docker 挂载 `/app/weights/ppe.pt` 或仓库内 `inference/weights/`、根目录等）。
+后端默认配置：`JUDGE_MODE=direct`、SQLite、admin/admin123（硬编码在 `config.py`）、抓拍目录 `./images`（相对 backend 启动目录）。演示模型自动按候选路径搜索：`weights/ppe/ppe.pt`、`weights/fire/fire.pt`（docker 挂载 `/app/weights/` 或仓库内 `weights/` 等）。
 
 ### 技术栈要点
 
@@ -132,9 +148,9 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 
 ### 重要陷阱
 
-- `*.pt` 不入库（.gitignore）：克隆后若缺模型，需从根目录复制 `ppe.pt` 到 `inference/weights/`，或由后端演示模式自动搜索。
+- `*.pt` 不入库（.gitignore）：克隆后若缺模型，需补齐到 `weights/ppe/ppe.pt`（PPE）与 `weights/fire/fire.pt`（火源），或由后端演示模式自动搜索。
 - 推理服务 cwd 必须是仓库根目录，否则 `python -m inference.main` 与相对路径配置失效。
-- 根目录 `ppe.pt` 与 `inference/weights/ppe.pt` 均存在（README 建议 docker 用 `inference/weights/` 一份）。
+- 所有模型权重集中存放于根目录 `weights/`（按用途分子目录，见 `weights/README.md`），配置/代码/docker 路径均指向此处。
 - `frontend/public/camera-test.html` 是摄像头测试辅助页（静态文件）。
 - 后端启动会预热演示模型（后台线程），首次 `/api/demo/detect` 才不卡顿；前端请求超时已放宽到 60s 以覆盖冷启动。
 - **SQLite 时间戳陷阱**：SQLite 的 `CURRENT_TIMESTAMP`（`server_default`）存的是 **UTC**，与业务层本地时间比较会差 8 小时（预警窗口统计、今日统计都会错）。因此模型时间戳一律用 Python 侧 `default=datetime.now`（本地时间）写入，**不要**改回 `server_default=_func.now()`。存量 SQLite 库曾做一次性 +8h 迁移（仅本地开发库，MySQL 的 `now()` 本就是本地时间，无此问题）。

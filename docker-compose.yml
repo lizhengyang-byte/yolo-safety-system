@@ -1,7 +1,7 @@
-version: "3.8"
+﻿version: "3.8"
 
 services:
-  # 数据库
+  # 鏁版嵁搴?
   mysql:
     image: mysql:8.0
     container_name: yolo-mysql
@@ -20,18 +20,18 @@ services:
       timeout: 5s
       retries: 10
 
-  # 流媒体转发服务（RTSP -> FLV/WebRTC，供前端预览）
+  # 娴佸獟浣撹浆鍙戞湇鍔★紙RTSP -> FLV/WebRTC锛屼緵鍓嶇棰勮锛?
   mediamtx:
     image: bluenviron/mediamtx:latest
     container_name: yolo-mediamtx
     restart: unless-stopped
     ports:
-      - "8554:8554"   # RTSP 输入端口
-      - "8080:8080"   # HTTP / FLV / HLS 输出端口
+      - "8554:8554"   # RTSP 杈撳叆绔彛
+      - "8080:8080"   # HTTP / FLV / HLS 杈撳嚭绔彛
     volumes:
       - ./deploy/mediamtx.yml:/mediamtx.yml
 
-  # FastAPI 后端
+  # FastAPI 鍚庣
   backend:
     build: ./backend
     container_name: yolo-backend
@@ -39,7 +39,7 @@ services:
     environment:
       DATABASE_URL: "mysql+pymysql://root:yolo123456@mysql:3306/yolo_safety?charset=utf8mb4"
       UPLOAD_DIR: "/data/images"
-      # 预警邮件（可选，留空则自动跳过发送）
+      # 棰勮閭欢锛堝彲閫夛紝鐣欑┖鍒欒嚜鍔ㄨ烦杩囧彂閫侊級
       MAIL_ENABLED: "${MAIL_ENABLED:-true}"
       SMTP_HOST: "${SMTP_HOST:-}"
       SMTP_PORT: "${SMTP_PORT:-465}"
@@ -53,25 +53,25 @@ services:
       - "8000:8000"
     volumes:
       - image_data:/data/images
-      - ./inference/weights:/app/weights:ro   # 演示模式复用同一模型权重
+      - ./weights:/app/weights:ro   # 婕旂ず妯″紡澶嶇敤鍚屼竴妯″瀷鏉冮噸
     depends_on:
       mysql:
         condition: service_healthy
 
-  # YOLO 推理服务（RTSP 拉流 + 检测 + 抓拍上报）
+  # YOLO 鎺ㄧ悊鏈嶅姟锛圧TSP 鎷夋祦 + 妫€娴?+ 鎶撴媿涓婃姤锛?
   inference:
     build: ./inference
     container_name: yolo-inference
     restart: unless-stopped
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all   # GPU 可选，去掉则用 CPU
+      - NVIDIA_VISIBLE_DEVICES=all   # GPU 鍙€夛紝鍘绘帀鍒欑敤 CPU
     volumes:
-      - ./inference/weights:/app/weights
+      - ./weights:/app/weights
       - ./inference/config.yaml:/app/config.yaml:ro
       - image_data:/data/images
     depends_on:
       - backend
-    # 如无 GPU 可移除下面两行
+    # 濡傛棤 GPU 鍙Щ闄や笅闈袱琛?
     deploy:
       resources:
         reservations:
@@ -80,7 +80,7 @@ services:
               count: all
               capabilities: [gpu]
 
-  # 前端（Nginx 托管 + 反代后端）
+  # 鍓嶇锛圢ginx 鎵樼 + 鍙嶄唬鍚庣锛?
   frontend:
     build: ./frontend
     container_name: yolo-frontend

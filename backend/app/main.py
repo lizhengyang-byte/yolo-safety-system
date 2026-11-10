@@ -66,6 +66,9 @@ def _warmup_demo_model():
 
         demo.get_detector()
         print("[startup] 演示模型（ppe.pt）预热完成")
+        # 火源/烟雾模型（第二模型）同样预热；失败不影响 PPE 预热
+        demo.get_fire_detector()
+        print("[startup] 火源模型（fire.pt）预热完成")
     except Exception as e:
         print(f"[startup] 演示模型预热失败（首次请求时会再尝试加载）: {e}")
 

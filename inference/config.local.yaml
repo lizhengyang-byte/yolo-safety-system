@@ -6,7 +6,7 @@
 
 backend_url: "http://localhost:8000"
 
-model_path: "inference/weights/ppe.pt"
+model_path: "weights/ppe/ppe.pt"
 
 class_names:
   0: Hardhat
@@ -31,6 +31,19 @@ conf_threshold: 0.5
 dedup_seconds: 30
 infer_every_n_frames: 5
 device: cpu
+
+# ---------- 火源火灾检测（第二模型，与 PPE 模型并行推理）----------
+# 全部启用摄像头同时进行 PPE 与火源检测；关闭可设 fire_enabled: false
+fire_enabled: true
+# 火源/烟雾模型权重（YOLOv8n，2 类：0=smoke 1=fire）
+fire_model_path: "weights/fire/fire.pt"
+fire_class_names:
+  0: smoke
+  1: fire
+fire_violation_rule:
+  fire: fire
+  smoke: smoke
+fire_conf_threshold: 0.4
 
 # 抓拍图片本地缓存目录（后端入库时还会保存一份到后端 UPLOAD_DIR）
 save_dir: "./images"

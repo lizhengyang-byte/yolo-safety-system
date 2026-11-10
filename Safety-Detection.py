@@ -7,7 +7,7 @@ import math
 #cap = cv2.VideoCapture("./videos/huuman.mp4") 
 cap = cv2.VideoCapture("videos/工人工地干活视频素材.mp4")
 # Load YOLO model for detecting objects related to personal protective equipment (PPE)
-model = YOLO("ppe.pt")
+model = YOLO("weights/ppe/ppe.pt")
 
 # Class names for different objects detected by the model
 classNames = ['Hardhat', 'Mask', 'NO-Hardhat', 'NO-Mask', 'NO-Safety Vest', 'Person', 'Safety Cone',

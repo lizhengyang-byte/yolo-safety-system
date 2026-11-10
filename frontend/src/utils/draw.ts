@@ -1,5 +1,5 @@
 /** 检测框叠加绘制（演示页 / 实时监控页共用） */
-import { NEGATIVE_CLASSES, POSITIVE_CLASSES, VIOLATION_TYPE_MAP } from "@/constants/violations";
+import { NEGATIVE_CLASSES, POSITIVE_CLASSES, FIRE_CLASSES, VIOLATION_TYPE_MAP } from "@/constants/violations";
 
 export interface DrawableDetection {
   cls_name: string;
@@ -22,7 +22,7 @@ export function drawDetections(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (const d of detections) {
-    if (onlyViolations && !NEGATIVE_CLASSES.has(d.cls_name)) continue;
+    if (onlyViolations && !NEGATIVE_CLASSES.has(d.cls_name) && !FIRE_CLASSES.has(d.cls_name)) continue;
     const [x1, y1, x2, y2] = d.box;
     const w = x2 - x1;
     const h = y2 - y1;
@@ -30,6 +30,7 @@ export function drawDetections(
     let color = "#409eff"; // 蓝：其他目标
     if (POSITIVE_CLASSES.has(d.cls_name)) color = "#67c23a"; // 绿：合规装备
     if (NEGATIVE_CLASSES.has(d.cls_name)) color = "#f56c6c"; // 红：违规
+    if (FIRE_CLASSES.has(d.cls_name)) color = "#ff7d00"; // 橙：火源/烟雾
 
     ctx.strokeStyle = color;
     ctx.lineWidth = 3;

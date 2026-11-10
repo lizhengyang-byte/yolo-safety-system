@@ -220,8 +220,8 @@ function cameraName(id: number) {
 }
 
 function tagType(type: string) {
-  if (type === "no_helmet") return "danger";
-  if (type === "no_vest") return "warning";
+  if (type === "no_helmet" || type === "fire") return "danger";
+  if (type === "no_vest" || type === "smoke") return "warning";
   return "info";
 }
 

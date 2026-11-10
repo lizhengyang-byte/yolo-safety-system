@@ -44,4 +44,6 @@ export const TYPE_COLORS: Record<string, string> = {
   no_helmet: "#ef4444",
   no_vest: "#f59e0b",
   no_mask: "#8b5cf6",
+  fire: "#ff5a1f",
+  smoke: "#94a3b8",
 };

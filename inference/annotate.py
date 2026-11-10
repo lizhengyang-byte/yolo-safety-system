@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 
 # 与前端 views/demo/index.vue 的配色常量保持一致
-NEGATIVE_CLASSES = {"NO-Hardhat", "NO-Mask", "NO-Safety Vest"}
+NEGATIVE_CLASSES = {"NO-Hardhat", "NO-Mask", "NO-Safety Vest", "fire", "smoke"}
 POSITIVE_CLASSES = {"Hardhat", "Mask", "Safety Vest"}
 
 # 违规类型 key -> 中文名称（与前端 constants/violations.ts 保持一致）
@@ -20,6 +20,8 @@ VIOLATION_LABELS = {
     "no_helmet": "未戴安全帽",
     "no_vest": "未穿安全马甲",
     "no_mask": "未戴口罩",
+    "fire": "火源火灾",
+    "smoke": "烟雾",
 }
 
 # BGR 颜色
@@ -27,7 +29,11 @@ RED = (0, 0, 255)
 GREEN = (0, 255, 0)
 BLUE = (255, 0, 0)
 WHITE = (255, 255, 255)
+ORANGE = (0, 128, 255)  # 火源/烟雾：橙色高亮（BGR）
 BANNER_RGB = (220, 60, 60)
+
+# 火源/烟雾类别（橙色框，区别于 PPE 违规红框）
+FIRE_CLASSES = {"fire", "smoke"}
 
 # 常见中文字体路径（Windows / Linux）
 _FONT_PATHS = [
@@ -99,7 +105,9 @@ def draw_annotations(image, detections, violations) -> np.ndarray:
     for d in detections:
         x1, y1, x2, y2 = [int(v) for v in d.box]
         color = BLUE
-        if d.cls_name in NEGATIVE_CLASSES:
+        if d.cls_name in FIRE_CLASSES:
+            color = ORANGE  # 火源/烟雾橙色高亮
+        elif d.cls_name in NEGATIVE_CLASSES:
             color = RED
         elif d.cls_name in POSITIVE_CLASSES:
             color = GREEN

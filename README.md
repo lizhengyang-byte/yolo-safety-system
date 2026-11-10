@@ -110,7 +110,7 @@ JWT 登录鉴权，登录态失效自动跳转登录页；记住密码、玻璃�
 
 ### 方式一：本地开发（推荐）
 
-**前置条件：** Python 3.12 + [uv](https://docs.astral.sh/uv/)、Node.js 18+、模型权重 `ppe.pt`（克隆后若缺失，从根目录复制一份到 `inference/weights/`）。
+**前置条件：** Python 3.12 + [uv](https://docs.astral.sh/uv/)、Node.js 18+、模型权重（集中存放在根目录 `weights/`：`weights/ppe/ppe.pt`、`weights/fire/fire.pt`，克隆后若缺失需补齐，见 `weights/README.md`）。
 
 **三个终端分别启动后端 / 推理服务 / 前端：**
 
@@ -136,8 +136,8 @@ npm run dev
 ### 方式二：Docker 部署
 
 ```bash
-# 1. 确认模型权重存在（从根目录复制，若缺失）
-ls inference/weights/ppe.pt
+# 1. 确认模型权重存在（weights/ppe/ppe.pt 与 weights/fire/fire.pt）
+ls weights/ppe/ppe.pt weights/fire/fire.pt
 
 # 2. 一键启动全部服务
 docker compose up -d --build
@@ -180,7 +180,6 @@ yolo-safety-system/
 │   ├── main.py              # 多摄像头并发入口（从后端拉取启用列表）
 │   ├── config.yaml          # Docker 配置
 │   ├── config.local.yaml    # 本地开发配置
-│   ├── weights/             # 模型权重（ppe.pt，*.pt 不入库）
 │   └── Dockerfile
 ├── frontend/                # Vue3 前端（Vue3 + TS + Element Plus + Vite + ECharts + flv.js）
 │   ├── src/
@@ -208,7 +207,9 @@ yolo-safety-system/
 ├── start-local.bat          # 本地一键启动（后端 + 前端）
 ├── start-local.py           # 本地一键启动（Python 版，健康检查 + 可选推理服务）
 ├── start-demo.py            # 前端演示启动（自动登录并打开指定页面）
-└── ppe.pt                   # 模型权重（根目录副本）
+└── weights/                 # 模型权重集中目录（*.pt 不入库，见 weights/README.md）
+    ├── ppe/ppe.pt           # PPE 检测模型（10 类）
+    └── fire/fire.pt         # 火源/烟雾检测模型（2 类）
 ```
 
 ### Key Directories Explained
@@ -320,7 +321,8 @@ SQLAlchemy 的 `server_default=_func.now()` 在 SQLite 上生成 `CURRENT_TIMEST
 | `JWT_SECRET` / `JWT_EXPIRE_MINUTES`                                                                                                               | 登录令牌                                            | `yolo-safety-secret...` / 720     | 后端                                                  |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD`                                                                                                               | 默认账号                                            | `admin` / `admin123`            | 后端                                                  |
 | `UPLOAD_DIR`                                                                                                                                        | 抓拍图片目录                                        | `./images`                        | 后端（Docker 覆盖为`/data/images`）                 |
-| `DEMO_MODEL_PATH` / `DEMO_CONF_THRESHOLD` / `DEMO_DEVICE`                                                                                       | 演示模型                                            | `/app/weights/ppe.pt` / 0.5 / cpu | 后端                                                  |
+| `DEMO_MODEL_PATH` / `DEMO_CONF_THRESHOLD` / `DEMO_DEVICE`                                                                                       | 演示模型                                            | `/app/weights/ppe/ppe.pt` / 0.5 / cpu | 后端                                                  |
+| `DEMO_FIRE_ENABLED` / `DEMO_FIRE_MODEL_PATH` / `DEMO_FIRE_CONF_THRESHOLD`                                                                        | 火源/烟雾检测（第二模型，与 PPE 并行）             | `true` / `/app/weights/fire/fire.pt` / 0.4 | 后端（`backend/.env`）                              |
 | `VITE_MEDIAMTX_BASE`                                                                                                                                | 监控页 FLV 地址前缀                                 | `http://localhost:8080`           | 前端`.env`                                          |
 | `CONFIG_PATH`                                                                                                                                       | 推理服务配置文件                                    | -                                   | 推理服务（本地用`inference/config.local.yaml`）     |
 | `MAIL_ENABLED` / `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_SSL` / `SMTP_STARTTLS` / `MAIL_FROM` / `MAIL_TO` | 预警邮件 SMTP（初始默认值，网页「预警配置」可覆盖） | 空（自动跳过发送）                  | 后端`backend/.env`，模板见 `backend/.env.example` |
@@ -361,7 +363,7 @@ npm run build            # ② Vite 生产构建（打包通过 = 语法/导入/
 
 **问题：** `/api/demo/detect` 返回 503，`/api/demo/status` 的 `model_path` 为 null。
 
-**解决：** 模型 `ppe.pt` 缺失。从仓库根目录复制到 `inference/weights/ppe.pt`（或 `backend/weights/ppe.pt`），重启后端。
+**解决：** 模型 `ppe.pt` 缺失。将模型放入 `weights/ppe/ppe.pt`（火源放 `weights/fire/fire.pt`，详见 `weights/README.md`），重启后端。
 
 ### 推理服务启动即退出或报错
 

@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parent
 BACKEND_DIR = ROOT / "backend"
 FRONTEND_DIR = ROOT / "frontend"
 INFERENCE_CONFIG = "inference/config.local.yaml"
-MODEL_CANDIDATES = [ROOT / "inference/weights/ppe.pt", ROOT / "ppe.pt"]
+MODEL_CANDIDATES = [ROOT / "weights/ppe/ppe.pt", ROOT / "weights/ppe.pt", ROOT / "inference/weights/ppe.pt"]
 
 BACKEND_PORT = 8000
 FRONTEND_PORT = 3000
@@ -136,8 +136,8 @@ def start_process(args: list[str], cwd: Path, env: dict | None = None,
 
 def check_model() -> None:
     if not any(p.exists() for p in MODEL_CANDIDATES):
-        log("⚠️  未找到模型权重 ppe.pt（inference/weights/ 或根目录）！", color="red")
-        log("演示接口会返回 503；请从仓库其他位置复制一份 ppe.pt。", color="yellow")
+        log("⚠️  未找到模型权重 ppe.pt（weights/ppe/ 或 weights/）！", color="red")
+        log("演示接口会返回 503；请将 ppe.pt 放入 weights/ppe/ 目录。", color="yellow")
 
 
 def main() -> int:

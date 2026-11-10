@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 
 def main(input_path="videos/地产工人工地干活视频素材.mp4", output_path="videos/当安全员来到工地视察！output.mp4",
-         model_path="ppe.pt", conf_thres=0.5, show=False, device=None):
+         model_path="weights/ppe/ppe.pt", conf_thres=0.5, show=False, device=None):
     # Open the input video
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YOLOv8 PPE detection with annotated video export")
     parser.add_argument("--input", default="videos/地产工人工地干活视频素材.mp4", help="input video path")
     parser.add_argument("--output", default="videos/地产工人工地干活视频素材output.mp4", help="output annotated video path")
-    parser.add_argument("--model", default="ppe.pt", help="YOLO weights file")
+    parser.add_argument("--model", default="weights/ppe/ppe.pt", help="YOLO weights file")
     parser.add_argument("--conf", type=float, default=0.5, help="confidence threshold")
     parser.add_argument("--show", action="store_true", help="also display frames in a window")
     parser.add_argument("--device", default=None, help="inference device, e.g. 'cpu' or '0'")
