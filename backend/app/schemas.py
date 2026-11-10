@@ -135,3 +135,44 @@ class WarningEventPage(BaseModel):
 # ---------- 通用 ----------
 class MessageOut(BaseModel):
     message: str
+
+
+# ---------- 危险区域（多边形 ROI） ----------
+class DangerZoneBase(BaseModel):
+    camera_id: int
+    zone_name: str = Field(..., max_length=64)
+    zone_type: str = "danger"  # danger / pit / lifting / other
+    # 归一化多边形顶点 [[x,y],...]，0~1
+    polygon: List[List[float]]
+    min_confidence: float = Field(0.4, ge=0.0, le=1.0)
+    min_dwell_seconds: float = Field(2.0, ge=0.0, le=60.0)
+    enabled: bool = True
+
+
+class DangerZoneCreate(DangerZoneBase):
+    pass
+
+
+class DangerZoneUpdate(BaseModel):
+    camera_id: Optional[int] = None
+    zone_name: Optional[str] = None
+    zone_type: Optional[str] = None
+    polygon: Optional[List[List[float]]] = None
+    min_confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
+    min_dwell_seconds: Optional[float] = Field(None, ge=0.0, le=60.0)
+    enabled: Optional[bool] = None
+
+
+class DangerZoneOut(BaseModel):
+    id: int
+    camera_id: int
+    zone_name: str
+    zone_type: str
+    polygon: List[List[float]]
+    min_confidence: float
+    min_dwell_seconds: float
+    enabled: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

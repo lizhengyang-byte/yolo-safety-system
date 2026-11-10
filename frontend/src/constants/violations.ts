@@ -7,12 +7,16 @@ export const VIOLATION_TYPE_MAP: Record<string, string> = {
   no_mask: "未戴口罩",
   fire: "火源火灾",
   smoke: "烟雾",
+  zone_intrusion: "危险区域闯入",
 };
 
 /** 违规类型下拉选项 */
 export const VIOLATION_TYPE_OPTIONS = Object.entries(VIOLATION_TYPE_MAP).map(
   ([value, label]) => ({ value, label })
 );
+
+/** 危险区域闯入（ROI 多边形）配色键 */
+export const ZONE_INTRUSION = "zone_intrusion";
 
 /** ppe.pt 违规类（NO-*）—— 检测框标红 */
 export const NEGATIVE_CLASSES = new Set([

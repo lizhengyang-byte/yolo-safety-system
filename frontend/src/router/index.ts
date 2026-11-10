@@ -43,6 +43,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "摄像头管理" },
       },
       {
+        path: "zone",
+        name: "Zone",
+        component: () => import("@/views/zone/index.vue"),
+        meta: { title: "危险区域" },
+      },
+      {
         path: "violation",
         name: "Violation",
         component: () => import("@/views/violation/index.vue"),

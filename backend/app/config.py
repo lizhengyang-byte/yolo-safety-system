@@ -23,7 +23,14 @@ class Settings(BaseSettings):
     # 抓拍图片存储目录（本地默认 backend/images/，docker-compose 覆盖为 /data/images）
     UPLOAD_DIR: str = "./images"
     # 允许的违规类型（系统级 key，前端展示中文）
-    VIOLATION_TYPES: list = ["no_helmet", "no_vest", "no_mask", "fire", "smoke"]
+    VIOLATION_TYPES: list = [
+        "no_helmet",
+        "no_vest",
+        "no_mask",
+        "fire",
+        "smoke",
+        "zone_intrusion",
+    ]
     # 违规判定规则：违规类型 -> 触发违规的类别名（与 ppe.pt 类别一致）
     # 火源/烟雾由独立 fire.pt 模型检测（见下方 FIRE_* 配置），同样走 direct 判定
     VIOLATION_RULE: dict = {

@@ -15,9 +15,10 @@ import cv2
 import numpy as np
 import requests
 
-from .annotate import draw_annotations
+from .annotate import draw_annotations, draw_zones
 from .detector import YoloDetector
 from .judge import judge_violations
+from .zone import judge_zone_intrusion
 
 
 class StreamWorker:
@@ -53,6 +54,13 @@ class StreamWorker:
         self.save_dir = config.get("save_dir", "/data/images")
         os.makedirs(self.save_dir, exist_ok=True)
 
+        # 危险区域（多边形 ROI）：启动时/重连后按摄像头从后端拉取
+        self.zones: list = []
+        self.zones_loaded_at = 0.0
+        self.zones_refresh_seconds = config.get("zones_refresh_seconds", 60)
+        # 各区域的"首次进入时间"用于停留时长判定：zone_id -> enter_ts
+        self._zone_enter_ts: dict = {}
+
         # 违规去重缓存: (violation_type) -> last_ts
         self._last_report: dict = {}
         self._running = False
@@ -64,6 +72,8 @@ class StreamWorker:
         image_np: np.ndarray,
         confidence: float = 0.0,
         detections=None,
+        zones=None,
+        hit_zone_ids=None,
     ):
         now = time.time()
         key = vio_type
@@ -80,6 +90,9 @@ class StreamWorker:
 
         # 标注证据图：检测框 + 违规横幅（有说服力的留痕）
         anno_image = draw_annotations(image_np, detections or [], [vio_type])
+        # 区域闯入时，叠加绘制危险区域多边形（命中区域高亮）
+        if zones:
+            anno_image = draw_zones(anno_image, zones, hit_zone_ids)
         anno_local = os.path.join(self.save_dir, anno_fname)
         cv2.imwrite(anno_local, anno_image)
 
@@ -143,6 +156,27 @@ class StreamWorker:
         except Exception:
             pass
 
+    # ---------- 危险区域配置拉取 ----------
+    def _load_zones(self, force: bool = False):
+        """按摄像头从后端拉取启用的危险区域配置（定期刷新，失败保留旧配置）"""
+        now = time.time()
+        if not force and now - self.zones_loaded_at < self.zones_refresh_seconds:
+            return
+        try:
+            resp = requests.get(
+                f"{self.backend_url}/api/zones",
+                params={"camera_id": self.camera["id"]},
+                timeout=8,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                self.zones = [z for z in data if z.get("enabled", True)]
+                self.zones_loaded_at = now
+                if self.zones:
+                    print(f"[{self.camera['name']}] 已加载危险区域 {len(self.zones)} 个")
+        except Exception as e:
+            print(f"[{self.camera['name']}] 危险区域拉取失败（沿用旧配置）: {e}")
+
     # ---------- 主循环 ----------
     def run(self):
         self._running = True
@@ -166,6 +200,8 @@ class StreamWorker:
                 continue
 
             self._heartbeat(True)
+            # 定期拉取危险区域配置（首次连接后立即拉）
+            self._load_zones()
             frame_idx += 1
             if frame_idx % self.infer_every != 0:
                 continue
@@ -195,6 +231,35 @@ class StreamWorker:
                     fire_detections, self.fire_rule, mode="direct"
                 )
 
+            # ---------- 危险区域闯入判定（几何 + 置信度 + 停留时长） ----------
+            zone_vio_conf = 0.0
+            hit_zone_ids = set()
+            if self.zones and detections:
+                img_h, img_w = frame.shape[:2]
+                now_ts = time.time()
+                hits = judge_zone_intrusion(
+                    detections, self.zones, img_w, img_h
+                )
+                cur_ids = {h["zone_id"] for h in hits}
+                # 维护每个区域的进入时间；离开即清除
+                for zid in list(self._zone_enter_ts.keys()):
+                    if zid not in cur_ids:
+                        self._zone_enter_ts.pop(zid, None)
+                for h in hits:
+                    zid = h["zone_id"]
+                    zone_cfg = next(
+                        (z for z in self.zones if z.get("id") == zid), {}
+                    )
+                    min_dwell = float(zone_cfg.get("min_dwell_seconds", 2.0))
+                    enter_ts = self._zone_enter_ts.setdefault(zid, now_ts)
+                    dwell = now_ts - enter_ts
+                    if dwell >= min_dwell:
+                        hit_zone_ids.add(zid)
+                        if h["max_conf"] > zone_vio_conf:
+                            zone_vio_conf = h["max_conf"]
+                if hit_zone_ids:
+                    violations.add("zone_intrusion")
+
             if not violations:
                 continue
 
@@ -202,6 +267,13 @@ class StreamWorker:
             trigger_by_vio = {**self.rule, **self.fire_rule}
             # 每条违规的置信度：触发该违规的检测框最大置信度（direct 模式）
             for vio in violations:
+                if vio == "zone_intrusion":
+                    conf = zone_vio_conf
+                    self._report(
+                        vio, frame, conf, all_detections,
+                        zones=self.zones, hit_zone_ids=hit_zone_ids,
+                    )
+                    continue
                 trigger_cls = trigger_by_vio.get(vio, "")
                 conf = max(
                     (d.conf for d in all_detections if d.cls_name == trigger_cls),

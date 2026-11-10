@@ -22,6 +22,7 @@ VIOLATION_LABELS = {
     "no_mask": "未戴口罩",
     "fire": "火源火灾",
     "smoke": "烟雾",
+    "zone_intrusion": "危险区域闯入",
 }
 
 # BGR 颜色
@@ -30,6 +31,7 @@ GREEN = (0, 255, 0)
 BLUE = (255, 0, 0)
 WHITE = (255, 255, 255)
 ORANGE = (0, 128, 255)  # 火源/烟雾：橙色高亮（BGR）
+PURPLE = (255, 0, 160)  # 危险区域多边形（BGR 紫红）
 BANNER_RGB = (220, 60, 60)
 
 # 火源/烟雾类别（橙色框，区别于 PPE 违规红框）
@@ -121,4 +123,37 @@ def draw_annotations(image, detections, violations) -> np.ndarray:
             img, label, (x1 + 4, ty + th + 4),
             cv2.FONT_HERSHEY_SIMPLEX, 0.6, WHITE, 2, cv2.LINE_AA,
         )
+    return img
+
+
+def draw_zones(image, zones, hit_zone_ids=None) -> np.ndarray:
+    """在图片上绘制危险区域多边形（证据图用）。
+
+    :param image: BGR 图像
+    :param zones: 区域列表，每项含 points:[[x,y],...]（归一化 0~1）、zone_name
+    :param hit_zone_ids: 本次命中的区域 id 集合（命中区域填充更醒目）
+    """
+    img = image.copy()
+    h, w = img.shape[:2]
+    hit_zone_ids = set(hit_zone_ids or [])
+    for z in zones or []:
+        pts = z.get("points") or []
+        if len(pts) < 3:
+            continue
+        poly = np.array(
+            [[int(x * w), int(y * h)] for x, y in pts], dtype=np.int32
+        )
+        hit = z.get("id") in hit_zone_ids
+        if hit:
+            overlay = img.copy()
+            cv2.fillPoly(overlay, [poly], PURPLE)
+            img = cv2.addWeighted(overlay, 0.25, img, 0.75, 0)
+        cv2.polylines(img, [poly], True, PURPLE, 3 if hit else 2)
+        name = z.get("zone_name", "")
+        if name:
+            x0, y0 = poly[0]
+            cv2.putText(
+                img, name, (int(x0), max(20, int(y0) - 8)),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, PURPLE, 2, cv2.LINE_AA,
+            )
     return img

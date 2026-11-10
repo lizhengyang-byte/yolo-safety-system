@@ -101,3 +101,38 @@ class SystemSetting(Base):
     key = Column(String(64), primary_key=True, comment="配置键")
     value = Column(Text, default="", comment="配置值（字符串存储）")
     updated_at = Column(DateTime, default=_ts, onupdate=_ts, comment="更新时间")
+
+
+class DangerZone(Base):
+    """危险区域（多边形 ROI，绑定到具体摄像头）
+
+    人员在区域内且满足置信度/停留时长即判为"危险区域闯入"（zone_intrusion）。
+    polygon 用归一化坐标（0~1，相对画面宽高）存储的 JSON 顶点数组：
+      [[x1,y1],[x2,y2],...]，分辨率变化不失真。
+    zone_type：danger(配电房/危险区) / pit(基坑) / lifting(吊装区) / other
+    """
+
+    __tablename__ = "danger_zones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    camera_id = Column(Integer, index=True, nullable=False, comment="摄像头ID")
+    zone_name = Column(String(64), nullable=False, comment="区域名称")
+    zone_type = Column(String(16), default="danger", comment="区域类别")
+    # 归一化多边形顶点 JSON：[[x,y],...]（0~1）
+    polygon = Column(Text, nullable=False, comment="归一化多边形顶点 JSON")
+    # 判定参数（可按区域单独调整）
+    min_confidence = Column(Float, default=0.4, comment="人员检测置信度阈值")
+    min_dwell_seconds = Column(Float, default=2.0, comment="停留时长阈值（秒）")
+    enabled = Column(Boolean, nullable=False, default=True, comment="是否启用")
+    created_at = Column(DateTime, default=_ts, comment="创建时间")
+
+    @property
+    def points(self) -> list:
+        """解析 polygon JSON，返回 [[x,y],...]；非法返回空列表"""
+        try:
+            data = json.loads(self.polygon)
+            if isinstance(data, list):
+                return data
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return []

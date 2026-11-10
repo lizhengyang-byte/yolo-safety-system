@@ -46,6 +46,10 @@
             <el-icon><Monitor /></el-icon>
             <template #title>摄像头管理</template>
           </el-menu-item>
+          <el-menu-item index="/zone">
+            <el-icon><Aim /></el-icon>
+            <template #title>危险区域</template>
+          </el-menu-item>
           <el-menu-item index="/violation">
             <el-icon><Warning /></el-icon>
             <template #title>违规记录</template>

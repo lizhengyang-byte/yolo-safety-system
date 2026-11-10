@@ -18,6 +18,7 @@ from .routers import (
     realtime,
     violations,
     warnings,
+    zones,
 )
 from .routers import settings as settings_router
 
@@ -108,6 +109,7 @@ app.include_router(demo.router, prefix="/api/demo", tags=["临时演示"])
 app.include_router(warnings.router, prefix="/api/warnings", tags=["预警中心"])
 app.include_router(realtime.router, prefix="/api/realtime", tags=["实时推送"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["系统配置"])
+app.include_router(zones.router, prefix="/api/zones", tags=["危险区域"])
 
 
 @app.get("/api/health", tags=["健康检查"])

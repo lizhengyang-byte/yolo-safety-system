@@ -176,7 +176,7 @@ const detailTitle = computed(() => {
 });
 
 function tagType(type: string) {
-  if (type === "no_helmet" || type === "fire") return "danger";
+  if (type === "no_helmet" || type === "fire" || type === "zone_intrusion") return "danger";
   if (type === "no_vest" || type === "smoke") return "warning";
   return "info";
 }

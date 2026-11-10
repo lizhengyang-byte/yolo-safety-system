@@ -124,8 +124,19 @@ RTSP 摄像头 → MediaMTX 转发(8554/8080) → 推理服务(OpenCV 拉流)
 
 火源模型权重 `weights/fire/fire.pt`（约 6 MB，来自公开 HF 模型 `rabahdev/fire-smoke-yolov8n`）。所有模型权重集中存放于仓库根目录 `weights/`（按用途分子目录：`weights/ppe/ppe.pt`、`weights/fire/fire.pt`，见 `weights/README.md`）。`*.pt` 不入库，克隆后需补放。docker 中 backend 与 inference 共用 `./weights:/app/weights` 挂载，`/app/weights/ppe/ppe.pt`、`/app/weights/fire/fire.pt` 自动可用。
 
-### 模型类别与违规配置分布在多处（改模型时都要改）
+### 危险区域闯入（多边形 ROI，无需新模型；区域绑定具体摄像头）
 
+在 PPE 检测基础上，用**已有 `Person` 检测框 + 可配置多边形 ROI** 判定"人员误入危险区域"（配电房/基坑/吊装区等），违规类型 `zone_intrusion`（危险区域闯入）。无需新模型，纯几何判定：
+
+- **判定原理**（`inference/zone.py` 与 `backend/app/detection/zone.py` 双份同步）：取人员框**底边中点**（脚下位置）归一化后，用射线法 `point_in_polygon` 判是否落在多边形内；结合**置信度阈值**（`min_confidence`，默认 0.4）与**停留时长**（`min_dwell_seconds`，默认 2s）过滤路过误报。
+- **数据表 `danger_zones`**：`camera_id`、`zone_name`、`zone_type`(danger/pit/lifting/other)、`polygon`(归一化顶点 JSON `[[x,y],...]` 0~1)、`min_confidence`、`min_dwell_seconds`、`enabled`。`create_all` 自动建表。
+- **接口**：`GET/POST /api/zones`、`PUT/DELETE /api/zones/{id}`（`GET` 支持 `?camera_id=` 过滤）。
+- **推理服务**（`stream_worker.py`）：连接后/每 `zones_refresh_seconds`（默认 60s）按 `camera_id` 从后端拉区域；每帧维护各区域"首次进入时间"，人员停留 ≥ `min_dwell_seconds` 且置信度达标则 `_report("zone_intrusion", ...)`，证据图用 `draw_zones` 叠加绘制命中的多边形（紫红）。
+- **前端**：`views/zone/index.vue`（菜单「危险区域」）——选摄像头 → 上传画面快照（或载入最近抓拍）→ 画布点击绘制多边形 → 填名称/类别/阈值 → 保存；支持列表查看/启停/删除。
+- **配置前提**：使用前必须为每个摄像头**单独配置至少一个区域多边形**（不同摄像头视野位置不同）；如需主动告警，再到预警中心对 `zone_intrusion` 建预警规则（走统一类型常量，自动出现在下拉）。
+- **陷阱**：ppe.pt 的人员类名是 `Person`（大写 P），zone 判定按 `cls_name.lower()=="person"` 兼容大小写，改为精确小写匹配会导致区域闯入永不触发。
+
+### 模型类别与违规配置分布在多处（改模型时都要改）
 | 位置 | 内容 |
 |---|---|
 | `inference/config.yaml` / `config.local.yaml` | `class_names`、`violation_rule`、`judge_mode`、`model_path`、`device` |

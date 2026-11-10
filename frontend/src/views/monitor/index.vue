@@ -59,9 +59,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { listCameras, type Camera } from "@/api/camera";
 import { demoDetect } from "@/api/demo";
+import { listZones } from "@/api/zone";
 import { drawDetections } from "@/utils/draw";
 import MonitorCell from "./MonitorCell.vue";
 
@@ -74,6 +75,8 @@ const focusId = ref<number | null>(null);
 const autoRotate = ref(false);
 const cellRefs = ref<InstanceType<typeof MonitorCell>[]>([]);
 const gridRef = ref<HTMLDivElement | null>(null);
+// 当前聚焦摄像头的危险区域（叠加显示用）
+const zoneOverlay = ref<{ zone_name: string; polygon: number[][] }[]>([]);
 
 const selected = computed(() =>
   cameras.value.filter((c) => selectedIds.value.includes(c.id))
@@ -111,6 +114,26 @@ function rotateNext() {
   focusId.value = selectedIds.value[(idx + 1) % selectedIds.value.length];
 }
 
+// ---------- 危险区域叠加（按聚焦摄像头拉取） ----------
+async function loadZoneOverlay() {
+  if (focusId.value == null) {
+    zoneOverlay.value = [];
+    return;
+  }
+  try {
+    const zones = await listZones(focusId.value);
+    zoneOverlay.value = zones
+      .filter((z) => z.enabled)
+      .map((z) => ({ zone_name: z.zone_name, polygon: z.polygon }));
+  } catch {
+    zoneOverlay.value = [];
+  }
+}
+
+watch(focusId, () => {
+  loadZoneOverlay();
+});
+
 // ---------- AI 叠加检测（复用演示模式检测接口，no_save 不入库） ----------
 async function detectLoop() {
   if (paused || inFlight || !focusId.value) return;
@@ -135,7 +158,7 @@ async function detectLoop() {
     }
     try {
       const res = await demoDetect(blob, { noSave: true });
-      drawDetections(canvas, res.detections, res.violations, false);
+      drawDetections(canvas, res.detections, res.violations, false, zoneOverlay.value);
     } catch {
       /* 检测失败（如模型未就绪）时保留视频画面 */
     } finally {
